@@ -12,7 +12,6 @@ describe("mergeConfig", () => {
       "cost",
       "tokens",
       "context",
-      "permission",
       "model",
       "rate",
     ]);

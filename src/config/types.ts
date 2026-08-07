@@ -3,8 +3,9 @@ import type { Palette, PaletteKey } from "@color";
 // The metric ids pharos computes itself, and their left-to-right render
 // order. Config's actual fields (below) are string-keyed, not
 // FieldName-keyed, so a plugin can add ids beyond this set; FIELD_NAMES/
-// FieldName just document/type the built-ins, and double as
-// defaults.ts's DEFAULT_FIELD_ORDER so the two can't drift apart.
+// FieldName just document/type the built-ins, and double as the base
+// defaults.ts derives DEFAULT_FIELD_ORDER from (minus "permission", which
+// is opt-in only — see the comment there) so the two can't drift apart.
 export const FIELD_NAMES = [
   "diff",
   "tools",

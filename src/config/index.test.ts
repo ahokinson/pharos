@@ -28,7 +28,6 @@ describe("loadConfig (filesystem-backed)", () => {
       "cost",
       "tokens",
       "context",
-      "permission",
       "model",
       "rate",
     ]);

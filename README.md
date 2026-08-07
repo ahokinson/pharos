@@ -45,7 +45,7 @@ keep their default.
 ```json
 {
   "palette": { "green": "#a6d189" },
-  "fieldOrder": ["diff", "tools", "toolErrors", "cost", "tokens", "context", "permission", "model", "rate"],
+  "fieldOrder": ["diff", "tools", "toolErrors", "cost", "tokens", "context", "model", "rate"],
   "fieldSettings": { "diff": { "row": 1, "priority": 10 } },
   "widths": { "diff": 7, "tools": 15, "cost": 6, "tokens": 13 },
   "metricStyle": {
@@ -74,7 +74,8 @@ keep their default.
 - `palette`: hex overrides for any named color; unnamed colors keep the
   Catppuccin Frappe default.
 - `fieldOrder`: which metrics render, and in what left-to-right order.
-  Omitting an id disables it entirely.
+  Omitting an id disables it entirely. Defaults to every built-in except
+  `permission` (see below), plus nothing from plugins until you list it.
 - `fieldSettings`: per-metric `row` (1 or 2) and `priority` (dropped first
   when a row is too narrow to fit; `priority >= 100` is never dropped).
 - `widths`: a fixed visible-width to pad each metric to, so a shorter or
@@ -94,11 +95,13 @@ keep their default.
   own transcript file, and its tool calls and token spend fold into the
   same totals as the main conversation's, since it's still work this
   session did (see `src/session/mining.ts`).
-- `permission`: silent while the live permission mode is `"default"`;
-  otherwise shows the mode by name, colored per
-  `metricStyle.permission.colors` (`bypassPermissions` red by default,
-  since that's the mode where whatever external safety tooling you've
-  wired up via a plugin is the only protection left; see "Example:
+- `permission`: off by default, since Claude Code already surfaces the live
+  permission mode itself and pharos repeating it just costs a column. Add
+  `"permission"` to `fieldOrder` to turn it on. Once enabled it stays silent
+  while the mode is `"default"`; otherwise it shows the mode by name,
+  colored per `metricStyle.permission.colors` (`bypassPermissions` red by
+  default, since that's the mode where whatever external safety tooling
+  you've wired up via a plugin is the only protection left; see "Example:
   cerberus" below).
 - `pulse.statusLeft`/`leadSpace`/`margin`: geometry offsets subtracted from
   the tmux client width when measuring how much room the pulse sweep has

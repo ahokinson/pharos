@@ -2,7 +2,10 @@ import { resolvePalette } from "@color";
 import { FIELD_NAMES } from "@config/types";
 import type { Config, FieldName, FieldSetting } from "@config/types";
 
-const DEFAULT_FIELD_ORDER: FieldName[] = [...FIELD_NAMES];
+// "permission" is a valid built-in (opt into it via fieldOrder) but is left
+// out of the default order: Claude Code already surfaces the live
+// permission mode itself, so pharos repeating it by default is redundant.
+const DEFAULT_FIELD_ORDER: FieldName[] = FIELD_NAMES.filter((f) => f !== "permission");
 
 const DEFAULT_FIELD_SETTINGS: Record<FieldName, FieldSetting> = {
   diff: { row: 1, priority: 10 },
