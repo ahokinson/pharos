@@ -115,8 +115,8 @@ keep their default.
 
 A concrete worked example of what a plugin can do: `examples/guards.ts`
 (shipped in this repo) rebuilds pharos's old built-in "guards" feature, a
-shield glyph plus per-guard severity-colored cells, as an ordinary metric
-plugin with nothing pharos-specific beyond `compute`/`render` and
+shield glyph plus one severity-colored deny count per guard, as an ordinary
+metric plugin with nothing pharos-specific beyond `compute`/`render` and
 `ctx.style`/`ctx.process`. Point `plugins` at it directly, or copy it as a
 starting point for your own guard tool:
 
@@ -125,29 +125,30 @@ starting point for your own guard tool:
 ```
 
 Its defaults already wire up [cerberus](https://github.com/ahokinson/cerberus),
-a three-headed PreToolUse guard (command-pattern scanning, policy
-evaluation, and hand-rolled situational checks like git safety), with
-nothing further to configure. A few things about that mapping aren't
-obvious from the plugin's shape alone:
+a three-headed PreToolUse guard whose heads are `risk` (command-pattern
+scanning), `policy` (policy evaluation), and `judgement` (scripted
+situational checks like git safety), with nothing further to configure. A
+few things about that mapping aren't obvious from the plugin's shape alone:
 
-- `binary` is `"cerberus"` for all three guards, not `"tirith"`/`"cupcake"`:
-  the actual hooks invoke `cerberus techne`/`cerberus episteme`/
-  `cerberus phronesis`, so `cerberus` on PATH is what each guard cell
-  actually needs. `requirements` covers what each head wraps underneath:
-  `tirith`, and `cupcake`/`opa`, are still separate binaries cerberus
-  shells out to, while `phronesis`'s checks are pure Rust with nothing
-  external to require.
-- The `context` id is a naming echo, not a pharos concept: cerberus's third
-  head is really `phronesis`, but its violations file still writes
-  `context=N` (kept for compatibility with the zsh scripts it replaced),
-  so the plugin's guard id has to stay `context` to attribute counts to
-  the right cell.
+- The guard ids are cerberus's head names verbatim. Its violations file is
+  keyed the same way (`risk=N`, `policy=N`, `judgement=N`), which is what
+  lets each count land in the right place. Renaming an id here without
+  renaming it there means that count silently reads zero forever.
+- The counts carry no glyph of their own. Position within `order` and the
+  guard's `color` are what tell them apart, so they read as one group under
+  the shield instead of three separate widgets.
+- `binary` is `"cerberus"` for all three guards rather than `"tirith"` or
+  `"cupcake"`. A single `cerberus guard` hook runs all three heads, so
+  `cerberus` on PATH is what every cell actually needs. `requirements`
+  covers what each head wraps underneath: `tirith`, and `cupcake`/`opa`,
+  are separate binaries cerberus shells out to, while `judgement` runs
+  in-process with nothing external to require.
 - The default `degradedSentinel` (`$XDG_STATE_HOME/guard/degraded`) already
-  matches where cerberus's own `soteria` health check writes it. `soteria`
-  does a real canary test, feeding a known-dangerous command through the
-  policy engine and confirming it's actually denied rather than just
-  checking whether the binary is present, so a degraded cell here means
-  the guard truly isn't enforcing, not merely that it's missing.
+  matches where `cerberus health` writes it at `SessionStart`. That check
+  is a real canary rather than a presence test: it feeds a known-dangerous
+  command through each enabled head and confirms it actually comes back
+  denied. So a degraded cell here means the guard truly isn't enforcing,
+  not merely that a binary is missing.
 
 To wire up a different guard tool, override `metricStyle.guards` in your
 own config (`shieldGlyph`, `degradedSentinel`, `order`, `definitions`,
@@ -159,7 +160,7 @@ Everything above configures pharos's own built-in metrics. Plugins are for
 new behavior: a metric pharos doesn't compute, styled however you like.
 There's no separate concept for anything more elaborate — `examples/guards.ts`
 (see above) is a full worked example of building something as involved as
-a multi-cell health-check shield entirely as an ordinary plugin. Each path
+a multi-count health-check shield entirely as an ordinary plugin. Each path
 in `plugins` is dynamically imported at startup (`pharos render` and
 `pharos list` only, not the tmux pulse); a plugin that fails to import, or
 throws at render time, is skipped and never breaks the statusline.

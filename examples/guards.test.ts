@@ -45,11 +45,11 @@ describe("examples/guards.ts", () => {
     expect(guardsPlugin.metrics![0]!.id).toBe("guards");
   });
 
-  test("renders a shield plus a cell per configured guard, using ctx.process for liveness", () => {
+  test("renders a shield plus one count per configured guard, using ctx.process for liveness", () => {
     const dir = mkdtempSync(join(tmpdir(), "pharos-example-guards-test-"));
     const stateDir = join(dir, "guard");
     mkdirSync(stateDir, { recursive: true });
-    writeFileSync(join(stateDir, "violations-smoke-test.state"), "tirith=0\ncupcake=2\ncontext=0\n");
+    writeFileSync(join(stateDir, "violations-smoke-test.state"), "risk=0\npolicy=2\njudgement=0\n");
 
     // Stand in "sh" (guaranteed present) for the real "cerberus" binary so
     // this test is hermetic; override degradedSentinel to a definitely-
@@ -58,11 +58,11 @@ describe("examples/guards.ts", () => {
       metricStyle: {
         guards: {
           degradedSentinel: join(dir, "not-a-real-sentinel"),
-          order: ["tirith", "cupcake", "context"],
+          order: ["risk", "policy", "judgement"],
           definitions: {
-            tirith: { glyph: "T", color: "red", binary: "sh", requirements: [] },
-            cupcake: { glyph: "C", color: "peach", binary: "sh", requirements: [] },
-            context: { glyph: "P", color: "yellow", binary: "sh", requirements: [] },
+            risk: { color: "red", binary: "sh", requirements: [] },
+            policy: { color: "peach", binary: "sh", requirements: [] },
+            judgement: { color: "yellow", binary: "sh", requirements: [] },
           },
         },
       },
@@ -80,11 +80,17 @@ describe("examples/guards.ts", () => {
     };
 
     const metric = guardsPlugin.metrics![0]!;
-    const text = stripAnsi(metric.render(metric.compute(ctx), ctx)!);
+    const raw = metric.render(metric.compute(ctx), ctx)!;
 
-    expect(text).toContain("T 0");
-    expect(text).toContain("C 2");
-    expect(text).toContain("P 0");
+    // Counts render in `order`, so position alone identifies each guard.
+    expect(stripAnsi(raw)).toEndWith(" 0 2 0");
+
+    // Color is the only other thing distinguishing them now that the
+    // per-guard glyphs are gone, so the nonzero count has to actually carry
+    // its guard's color rather than the dim zero treatment.
+    const style = buildStyleKit(config);
+    expect(raw).toContain(`${style.color("peach")}2`);
+    expect(raw).toContain(`${style.color("overlay2")}0`);
 
     rmSync(dir, { recursive: true, force: true });
   });

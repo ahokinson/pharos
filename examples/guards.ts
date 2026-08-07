@@ -1,11 +1,11 @@
 // A worked plugin example: rebuilds pharos's old built-in "guards" feature,
-// a shield glyph plus per-guard severity-colored cells each backed by "is
-// this binary on PATH, plus some requirements," entirely as an ordinary
-// metric plugin. Nothing here is special-cased by pharos; it's built from
-// the same compute/render + ctx.style/ctx.process surface any plugin gets
-// (see README's "Writing a plugin"). Point `plugins` at this file, or a
-// copy you've customized, to use it, or fork it wholesale as a starting
-// point for wiring up your own guard tool.
+// a shield glyph plus one severity-colored deny count per guard, each
+// backed by "is this binary on PATH, plus some requirements," entirely as
+// an ordinary metric plugin. Nothing here is special-cased by pharos; it's
+// built from the same compute/render + ctx.style/ctx.process surface any
+// plugin gets (see README's "Writing a plugin"). Point `plugins` at this
+// file, or a copy you've customized, to use it, or fork it wholesale as a
+// starting point for wiring up your own guard tool.
 //
 // The concrete ids/binaries below wire up cerberus (see README's "Example:
 // cerberus"), but the shape works for any binary-backed health check.
@@ -20,7 +20,6 @@ import type { Metric } from "@metrics";
 import type { Plugin } from "@plugin";
 
 interface GuardDef {
-  glyph: string;
   color: PaletteKey;
   binary: string;
   requirements: string[];
@@ -42,17 +41,18 @@ const defaultStateHome = process.env.XDG_STATE_HOME || `${process.env.HOME}/.loc
 const DEFAULTS: GuardsStyle = {
   shieldGlyph: "", // fa-shield
   degradedSentinel: `${defaultStateHome}/guard/degraded`,
-  order: ["tirith", "cupcake", "context"],
+  order: ["risk", "policy", "judgement"],
   definitions: {
-    tirith: { glyph: "", color: "red", binary: "cerberus", requirements: ["tirith"] },
-    cupcake: { glyph: "", color: "peach", binary: "cerberus", requirements: ["cupcake", "opa"] },
-    context: { glyph: "", color: "yellow", binary: "cerberus", requirements: [] },
+    risk: { color: "red", binary: "cerberus", requirements: ["tirith"] },
+    policy: { color: "peach", binary: "cerberus", requirements: ["cupcake", "opa"] },
+    judgement: { color: "yellow", binary: "cerberus", requirements: [] },
   },
 };
 
-// Per-session deny counts, written by whatever guard tool `binary` is (as
-// sourceable "id=N" lines, cerberus's own format, kept for compatibility
-// with the zsh scripts it replaced). This is entirely this plugin's own
+// Per-session deny counts, written by whatever guard tool `binary` is, as
+// sourceable "id=N" lines. The ids above match cerberus's own head names
+// (risk/policy/judgement), which is what makes the lookup below line up
+// with the file cerberus writes. This is entirely this plugin's own
 // concern, not something pharos core reads or knows the shape of. Reads
 // XDG_STATE_HOME fresh (not the module-load-time default above), so this
 // stays correct even outside a single stable process.
@@ -87,11 +87,18 @@ const guardsMetric: Metric<Record<string, number>> = {
       const state = ctx.process.checkHealth(def.binary, def.requirements, s.degradedSentinel);
       states.push(state);
       const count = violations[id] ?? 0;
-      const glyphFg = ctx.style.color(def.color);
+      // Position and color are what identify each guard, so the counts read
+      // as one group under the shield. An absent guard shows "-" rather
+      // than a count it can't vouch for; a live zero stays dim so that a
+      // nonzero count is the thing that draws the eye.
       const cellFg =
-        state === ("absent" as HealthStatus) ? ctx.style.color("surface2") : count > 0 ? glyphFg : ctx.style.color("overlay2");
+        state === ("absent" as HealthStatus)
+          ? ctx.style.color("surface2")
+          : count > 0
+            ? ctx.style.color(def.color)
+            : ctx.style.color("overlay2");
       const cell = state === ("absent" as HealthStatus) ? "-" : String(count);
-      cells += ` ${glyphFg}${def.glyph} ${cellFg}${cell}`;
+      cells += ` ${cellFg}${cell}`;
     }
     // Shield = the guards' worst state: red if any is degraded, else peach
     // if any is missing, else green. Compared as plain strings (via `as
