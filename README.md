@@ -1,5 +1,7 @@
 # pharos
 
+[![CI](https://github.com/ahokinson/pharos/actions/workflows/ci.yml/badge.svg)](https://github.com/ahokinson/pharos/actions/workflows/ci.yml)
+
 Renders Claude Code's live session state everywhere it's visible in the
 terminal: the statusline text Claude Code itself polls, and a pulsing
 light sweep in tmux's status bar while the agent is active.
@@ -15,6 +17,23 @@ plugin adds (see `examples/guards.ts` for a full worked example). Paired
 with [psyche](https://github.com/ahokinson/psyche), which injects the
 agent's inner voice, `pharos` is what a human standing outside the agent
 can actually see of it.
+
+## Installation
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ahokinson/pharos/develop/scripts/install.sh | sh
+```
+
+Installs the latest release binary to `~/.local/bin/pharos` (set
+`PHAROS_INSTALL_DIR` to install elsewhere, or `PHAROS_VERSION` to pin a
+specific tag). Prebuilt binaries cover macOS and Linux, arm64 and x64; see
+[Releases](https://github.com/ahokinson/pharos/releases). To build from
+source instead, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Check `pharos --version` after installing. Wiring it into Claude Code's
+`settings.json` as the `statusLine`/hook commands is still manual for now
+(see [Design](#design) below for the commands to point at); an automated
+`pharos init` is on the roadmap.
 
 ## Design
 
@@ -228,6 +247,7 @@ data as JSON, for scripting your own config.
 
 ## Status
 
-Fully implemented and tested (`bun test`). Not yet wired into the
-dotfiles repo's `settings.json` as the live `statusLine`/hook commands.
+Fully implemented, tested (`bun test`), and running as the live daily
+`statusLine`/hook commands. CI runs typecheck and tests on every PR; tagged
+releases publish prebuilt binaries (see [Installation](#installation)).
 See [CONTRIBUTING.md](CONTRIBUTING.md) for build and test tooling.

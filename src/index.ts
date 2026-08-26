@@ -4,10 +4,11 @@ import { runList } from "@metrics";
 import { render } from "@render";
 import { dispatch } from "@tmux/dispatch";
 import { pulse } from "@tmux/pulse";
+import pkg from "../package.json" with { type: "json" };
 
 function usage(): never {
   console.error(
-    "Usage: pharos render | pharos list [--json] | pharos tmux dispatch <state> | pharos tmux pulse <session> <token>",
+    "Usage: pharos render | pharos list [--json] | pharos tmux dispatch <state> | pharos tmux pulse <session> <token> | pharos --version",
   );
   process.exit(2);
 }
@@ -15,6 +16,10 @@ function usage(): never {
 const [command, ...rest] = process.argv.slice(2);
 
 switch (command) {
+  case "--version":
+  case "-v":
+    console.log(`pharos ${pkg.version}`);
+    break;
   case "render":
     await render(rest, await loadConfig());
     break;

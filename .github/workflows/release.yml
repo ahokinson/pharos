@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun test
+
+      # Bun cross-compiles `--compile` binaries from a single host, so one
+      # runner covers every target we distribute — no OS matrix needed.
+      - name: Build release binaries
+        run: |
+          mkdir -p dist
+          declare -A targets=(
+            [linux-x64]=bun-linux-x64
+            [linux-arm64]=bun-linux-arm64
+            [darwin-x64]=bun-darwin-x64
+            [darwin-arm64]=bun-darwin-arm64
+          )
+          for name in "${!targets[@]}"; do
+            bun build ./src/index.ts --compile --target="${targets[$name]}" --outfile "dist/pharos-${name}"
+          done
+
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum pharos-* > checksums.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
