@@ -5,11 +5,12 @@ import { runList } from "@metrics";
 import { render } from "@render";
 import { dispatch } from "@tmux/dispatch";
 import { pulse } from "@tmux/pulse";
+import { renderToTmux } from "@tmux/render";
 import pkg from "../package.json" with { type: "json" };
 
 function usage(): never {
   console.error(
-    "Usage: pharos [--tool=<id>] render | pharos list [--json] | pharos tmux dispatch <state> | pharos tmux pulse <session> <token> | pharos --version",
+    "Usage: pharos [--tool=<id>] render | pharos list [--json] | pharos tmux dispatch <state> | pharos tmux pulse <session> <token> | pharos tmux render | pharos --version",
   );
   process.exit(2);
 }
@@ -52,6 +53,7 @@ switch (command) {
     const [sub, ...tmuxArgs] = rest;
     if (sub === "dispatch") await dispatch(tmuxArgs, await loadConfigWithToolOverride());
     else if (sub === "pulse") await pulse(tmuxArgs, await loadConfigWithToolOverride());
+    else if (sub === "render") await renderToTmux(tmuxArgs, await loadConfigWithToolOverride());
     else usage();
     break;
   }
