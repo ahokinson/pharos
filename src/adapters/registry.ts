@@ -1,10 +1,12 @@
 import { claudeCodeAdapter } from "@adapters/claude-code";
+import { codexAdapter } from "@adapters/codex";
 import { AdapterName } from "@adapters/types";
 import type { HostAdapter } from "@adapters/types";
 import type { Config } from "@config/types";
 
 const ADAPTERS: Partial<Record<AdapterName, HostAdapter>> = {
   [AdapterName.ClaudeCode]: claudeCodeAdapter,
+  [AdapterName.Codex]: codexAdapter,
 };
 
 /** Resolves config.tool to its adapter, falling back to Claude Code for an
