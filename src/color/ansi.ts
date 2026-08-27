@@ -1,3 +1,4 @@
+import { hex2 } from "@color/convert";
 import type { RGB } from "@color/convert";
 
 export const FG = "\x1b[38;2;";
@@ -30,4 +31,29 @@ export function visibleWidth(s: string): number {
 export function padField(content: string, width: number): string {
   const gap = Math.max(0, width - visibleWidth(content));
   return content + " ".repeat(gap);
+}
+
+// tmux's status-line format engine has its own styling syntax (#[fg=...]),
+// not a terminal: raw truecolor SGR escapes embedded in a stored
+// @user-option are not guaranteed to render the way a real terminal would
+// interpret them (unverified in this environment — no live tmux socket
+// access to confirm either way). tmux/pulse.ts already proves #[fg=#hex]
+// works for exactly this surface, so this converts render's ANSI output
+// into that same, known-working directive form rather than gambling on
+// ANSI passthrough. `#` is tmux's own format-escape character, so any
+// literal `#` in field text (glyphs, labels) must double up to `##` or
+// tmux would try to interpret it.
+const ANSI_TOKEN_RE = /\x1b\[38;2;(\d+);(\d+);(\d+)m|\x1b\[0m/g;
+
+export function ansiToTmuxStyle(s: string): string {
+  let out = "";
+  let lastIndex = 0;
+  for (const m of s.matchAll(ANSI_TOKEN_RE)) {
+    out += s.slice(lastIndex, m.index).replaceAll("#", "##");
+    if (m[1] !== undefined) out += `#[fg=#${hex2(Number(m[1]))}${hex2(Number(m[2]))}${hex2(Number(m[3]))}]`;
+    else out += "#[default]";
+    lastIndex = m.index + m[0].length;
+  }
+  out += s.slice(lastIndex).replaceAll("#", "##");
+  return out;
 }

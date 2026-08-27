@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mergeConfig } from "@config";
 import { loadPlugins } from "@plugin/load";
+import { makeCtx } from "@test/context";
 
 describe("loadPlugins (filesystem-backed)", () => {
   let dir: string;
@@ -31,7 +32,7 @@ describe("loadPlugins (filesystem-backed)", () => {
     const resolved = await loadPlugins(config);
 
     expect(Object.keys(resolved.metrics)).toEqual(["greeting"]);
-    expect(resolved.metrics.greeting!.render("Sonnet", {} as any)).toBe("hi, Sonnet");
+    expect(resolved.metrics.greeting?.render("Sonnet", makeCtx())).toBe("hi, Sonnet");
     expect(resolved.sources.greeting).toBe(pluginPath);
   });
 

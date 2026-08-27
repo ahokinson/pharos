@@ -1,1 +1,1 @@
-export { bucketFor, bucketToolCounts, ToolCategory } from "@tools/bucket";
+export { bucketToolCounts, ToolCategory } from "@tools/bucket";

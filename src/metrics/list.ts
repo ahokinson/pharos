@@ -13,10 +13,10 @@ interface MetricRow {
 
 async function collect(config: Config): Promise<{ metrics: MetricRow[] }> {
   const resolved = await loadPlugins(config);
-  const registry = buildRegistry(config, resolved);
+  const { registry, config: effective } = buildRegistry(config, resolved);
 
   const metrics: MetricRow[] = Object.values(registry).map((metric) => {
-    const setting = config.fieldSettings[metric.id];
+    const setting = effective.fieldSettings[metric.id];
     const source = resolved.sources[metric.id];
     return {
       id: metric.id,

@@ -3,6 +3,9 @@ import type { Config } from "@config";
 import type { RampStyle, StyleKit } from "@metrics/types";
 
 const TICKS = "▁▂▃▄▅▆▇█";
+const TREND_WINDOW = 4;
+const SECONDS_PER_DAY = 86400;
+const SECONDS_PER_HOUR = 3600;
 
 export function sparkline(samples: number[], window: number): string {
   const turns = samples.length;
@@ -14,16 +17,20 @@ export function sparkline(samples: number[], window: number): string {
   const span = hi - lo;
   let out = "";
   for (const sample of slice) {
-    const idx = span > 0 ? Math.floor(((sample - lo) * 7) / span) : 0;
-    out += TICKS[idx];
+    // Scale each sample onto TICKS' full range. span === 0 (every visible
+    // sample equal) lands everything on tick 0.
+    const idx = span > 0 ? Math.floor(((sample - lo) * (TICKS.length - 1)) / span) : 0;
+    out += TICKS[idx] ?? "";
   }
   return out;
 }
 
 export function trend(samples: number[], slopeThreshold: number): "rising" | "falling" | "steady" | "" {
-  const turns = samples.length;
-  if (turns < 4) return "";
-  const slope = Math.trunc((samples[turns - 1]! - samples[turns - 4]!) / 3);
+  if (samples.length < TREND_WINDOW) return "";
+  const oldest = samples[samples.length - TREND_WINDOW];
+  const latest = samples[samples.length - 1];
+  if (oldest === undefined || latest === undefined) return "";
+  const slope = Math.trunc((latest - oldest) / (TREND_WINDOW - 1));
   if (slope > slopeThreshold) return "rising";
   if (slope < -slopeThreshold) return "falling";
   return "steady";
@@ -43,8 +50,8 @@ export function countdown(value: string | number, nowEpoch: number): string {
   }
   const remaining = target - nowEpoch;
   if (remaining <= 0) return "now";
-  if (remaining >= 86400) return `${Math.floor(remaining / 86400)}d`;
-  if (remaining >= 3600) return `${Math.floor(remaining / 3600)}h`;
+  if (remaining >= SECONDS_PER_DAY) return `${Math.floor(remaining / SECONDS_PER_DAY)}d`;
+  if (remaining >= SECONDS_PER_HOUR) return `${Math.floor(remaining / SECONDS_PER_HOUR)}h`;
   return `${Math.floor(remaining / 60)}m`;
 }
 
@@ -72,9 +79,9 @@ export function buildStyleKit(config: Config): StyleKit {
   return {
     settings(id, defaults) {
       // config.metricStyle is an open, string-keyed bag (see config/types).
-      // This is the one place a plugin's own declared style shape gets cast
-      // back to the shape it asked for, same trust level as the plugin's
-      // own compute()/render() calls.
+      // This is the one place a metric's declared style shape gets its bag
+      // narrowed back to the shape it asked for — the same trust level as
+      // the metric's own compute()/render() calls.
       return { ...defaults, ...(config.metricStyle[id] as Partial<typeof defaults> | undefined) };
     },
     ramp: (value, style) => ramp(p, value, style),

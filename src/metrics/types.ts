@@ -2,6 +2,7 @@ import type { PaletteKey } from "@color";
 import type { Config } from "@config";
 import type { HealthStatus } from "@process";
 import type { MiningState, Session } from "@session";
+import type { ToolCategory } from "@tools";
 
 export interface MetricContext {
   session: Session;
@@ -11,6 +12,10 @@ export interface MetricContext {
   config: Config;
   style: StyleKit;
   process: ProcessKit;
+  /** The active host adapter's tool-name lookup (see each adapter's own
+   * bucket.ts) — threaded through so the built-in `tools` metric never
+   * needs to know which host is running. */
+  bucketFor(toolName: string): ToolCategory;
 }
 
 /** External-tool-liveness helpers, threaded through context so a plugin
@@ -55,7 +60,7 @@ export interface StyleKit {
    * per-id extension point any metric (built-in or plugin) reads its own
    * config.metricStyle[id] bag through, without config's closed shape
    * needing to know about it in advance. */
-  settings<T extends Record<string, unknown>>(id: string, defaults: T): T;
+  settings<T extends object>(id: string, defaults: T): T;
   ramp(value: number, style: RampStyle): string;
   lerp(t: number, fromKey: PaletteKey, toKey: PaletteKey): string;
   gradient(text: string, fromKey: PaletteKey, toKey: PaletteKey, offset?: number, span?: number): string;

@@ -1,3 +1,4 @@
+import type { AdapterName } from "@adapters/types";
 import type { Palette, PaletteKey } from "@color";
 
 // The metric ids pharos computes itself, and their left-to-right render
@@ -32,6 +33,8 @@ export interface FieldSetting {
 }
 
 export interface Config {
+  /** Which host CLI pharos is rendering for (see src/adapters). */
+  tool: AdapterName;
   palette: Palette;
   /** Which metrics render, and in what left-to-right order. Omitting an id
    * disables it entirely. A plugin's metric id is just another entry here. */
@@ -70,6 +73,9 @@ export interface Config {
 // Deep-partial of Config, as read from the JSON config file. Every field is
 // optional; anything omitted keeps its default.
 export interface RawConfig {
+  /** Raw string as read from JSON; validated/cast to AdapterName at merge time,
+   * falling back to the default on an unrecognized value. */
+  tool?: string;
   palette?: Partial<Record<PaletteKey, string>>;
   fieldOrder?: string[];
   fieldSettings?: Record<string, Partial<FieldSetting>>;

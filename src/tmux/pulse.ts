@@ -1,11 +1,16 @@
 import { buildTail } from "@color";
 import type { Config } from "@config";
 import { commandExists, runSync } from "@process";
+import { isAnimatedState, PulseState } from "@tmux/states";
+import type { AnimatedState } from "@tmux/states";
 
 function themeColor(name: string, fallback: string): string {
   const value = runSync(["tmux", "show", "-gv", name]).stdout.trim();
   return value || fallback;
 }
+
+const DEFAULT_TRACK_WIDTH = 24;
+const MIN_TRACK_WIDTH = 10;
 
 // Track width = client width minus the tabs, so the pulse lands right after
 // them. Each catppuccin tab renders " #I  #W " (index + name + 4 padding
@@ -27,7 +32,7 @@ function measureWidth(sessionId: string, config: Config): number | null {
   const windowCount = Number(windowCountStr) || 1;
   const width =
     clientWidth - config.pulse.statusLeft - tabsText.length - (windowCount - 1) - config.pulse.leadSpace - config.pulse.margin;
-  return Math.max(10, width);
+  return Math.max(MIN_TRACK_WIDTH, width);
 }
 
 // Renders the status-bar pulse: writes an animation frame to @claude_frame
@@ -48,13 +53,13 @@ export async function pulse(args: string[], config: Config): Promise<void> {
   const askColor = themeColor(themeVars.ask, fallbackColors.ask);
   const backgroundColor = themeColor(themeVars.background, fallbackColors.background);
 
-  const tails: Record<string, string[]> = {
-    think: buildTail(thinkColor, backgroundColor, TAIL),
-    tool: buildTail(toolColor, backgroundColor, TAIL),
-    ask: buildTail(askColor, backgroundColor, TAIL),
+  const tails: Record<AnimatedState, string[]> = {
+    [PulseState.Think]: buildTail(thinkColor, backgroundColor, TAIL),
+    [PulseState.Tool]: buildTail(toolColor, backgroundColor, TAIL),
+    [PulseState.Ask]: buildTail(askColor, backgroundColor, TAIL),
   };
 
-  let width = measureWidth(sessionId, config) ?? 24;
+  let width = measureWidth(sessionId, config) ?? DEFAULT_TRACK_WIDTH;
   let speed = Math.max(1, width / SWEEP);
   // A continuous cell offset advanced by `speed` each frame; no modulo wrap,
   // so the tail never reappears on the left as the head exits right. It
@@ -72,7 +77,7 @@ export async function pulse(args: string[], config: Config): Promise<void> {
     if (!state) break;
     if (owner !== token) break;
 
-    const tail = tails[state] ?? tails.think!;
+    const tail = isAnimatedState(state) ? tails[state] : tails[PulseState.Think];
 
     if (frameCount % REMEASURE_EVERY === 0) {
       width = measureWidth(sessionId, config) ?? width;

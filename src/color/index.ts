@@ -1,4 +1,4 @@
-export { FG, RESET, rgbEscape, parseEscape, stripAnsi, visibleWidth, padField } from "@color/ansi";
+export { FG, RESET, rgbEscape, parseEscape, stripAnsi, visibleWidth, padField, ansiToTmuxStyle } from "@color/ansi";
 export type { RGB, HSL } from "@color/convert";
 export { rgbToHsl, hslToRgb, hexToRgb, hex2 } from "@color/convert";
 export { gradient, lerpColor, buildTail } from "@color/gradient";

@@ -9,12 +9,13 @@
     "types": ["bun"],
 
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
 
     "baseUrl": ".",
     "paths": {
+      "@adapters": ["src/adapters"],
+      "@adapters/*": ["src/adapters/*"],
       "@color": ["src/color"],
       "@color/*": ["src/color/*"],
       "@config": ["src/config"],
@@ -31,7 +32,9 @@
       "@session/*": ["src/session/*"],
       "@tools": ["src/tools"],
       "@tools/*": ["src/tools/*"],
-      "@tmux/*": ["src/tmux/*"]
+      "@tmux/*": ["src/tmux/*"],
+      "@test": ["src/test"],
+      "@test/*": ["src/test/*"]
     },
 
     "strict": true,

@@ -12,6 +12,13 @@
 //
 // Type imports below are erased at compile time (verbatimModuleSyntax), so
 // this file has no runtime dependency on pharos, same as any plugin.
+//
+// HealthStatus's string values ("absent", "degraded", ...) are part of
+// pharos's documented ProcessKit contract, so comparing against locally
+// declared copies of those literals keeps the zero-runtime-dependency rule
+// without sprinkling `as HealthStatus` casts through the render body.
+const ABSENT = "absent" as HealthStatus;
+const DEGRADED = "degraded" as HealthStatus;
 
 import { readFileSync } from "node:fs";
 import type { PaletteKey } from "@color";
@@ -25,13 +32,12 @@ interface GuardDef {
   requirements: string[];
 }
 
-interface GuardsStyle {
-  [key: string]: unknown;
+type GuardsStyle = {
   shieldGlyph: string;
   degradedSentinel: string;
   order: string[];
   definitions: Record<string, GuardDef>;
-}
+};
 
 // XDG_STATE_HOME is stable for the life of a single pharos invocation, so
 // the default below only needs to read it once, at load time, the same
@@ -63,10 +69,12 @@ function readViolations(sessionId: string): Record<string, number> {
   try {
     const text = readFileSync(path, "utf8");
     for (const line of text.split("\n")) {
-      const m = /^([\w-]+)=(\d+)$/.exec(line.trim());
-      if (m) counts[m[1]!] = Number(m[2]);
+      const [, id, count] = /^([\w-]+)=(\d+)$/.exec(line.trim()) ?? [];
+      if (id) counts[id] = Number(count);
     }
-  } catch {}
+  } catch {
+    // fail open: unreadable/missing counts just render as zeros
+  }
   return counts;
 }
 
@@ -92,22 +100,19 @@ const guardsMetric: Metric<Record<string, number>> = {
       // than a count it can't vouch for; a live zero stays dim so that a
       // nonzero count is the thing that draws the eye.
       const cellFg =
-        state === ("absent" as HealthStatus)
+        state === ABSENT
           ? ctx.style.color("surface2")
           : count > 0
             ? ctx.style.color(def.color)
             : ctx.style.color("overlay2");
-      const cell = state === ("absent" as HealthStatus) ? "-" : String(count);
+      const cell = state === ABSENT ? "-" : String(count);
       cells += ` ${cellFg}${cell}`;
     }
     // Shield = the guards' worst state: red if any is degraded, else peach
-    // if any is missing, else green. Compared as plain strings (via `as
-    // HealthStatus` casts on the literals, not a value import of the enum)
-    // so this plugin keeps zero runtime dependency on pharos, per the
-    // header comment above.
-    const shieldFg = states.includes("degraded" as HealthStatus)
+    // if any is missing, else green.
+    const shieldFg = states.includes(DEGRADED)
       ? ctx.style.color("red")
-      : states.includes("absent" as HealthStatus)
+      : states.includes(ABSENT)
         ? ctx.style.color("peach")
         : ctx.style.color("green");
     return `${shieldFg}${s.shieldGlyph}${cells}`;

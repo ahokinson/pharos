@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseSession } from "@session/session";
+import { parseSession } from "@adapters/claude-code/session";
 
 describe("parseSession", () => {
   test("applies defaults matching the JSON contract's fallbacks", () => {

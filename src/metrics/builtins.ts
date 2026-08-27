@@ -8,12 +8,11 @@ interface DiffValue {
   removed: number;
 }
 
-interface DiffStyle {
-  [key: string]: unknown;
+type DiffStyle = {
   addColor: PaletteKey;
   removeColor: PaletteKey;
   neutralColor: PaletteKey;
-}
+};
 
 const DIFF_DEFAULTS: DiffStyle = { addColor: "green", removeColor: "red", neutralColor: "overlay2" };
 
@@ -33,12 +32,11 @@ const diffMetric: Metric<DiffValue> = {
   },
 };
 
-interface CostStyle {
-  [key: string]: unknown;
+type CostStyle = {
   steps: RampStep[];
   base: PaletteKey;
   mutedColor: PaletteKey;
-}
+};
 
 const COST_DEFAULTS: CostStyle = {
   steps: [
@@ -74,12 +72,11 @@ interface TokensValue {
   out: number;
 }
 
-interface TokensStyle {
-  [key: string]: unknown;
+type TokensStyle = {
   from: PaletteKey;
   to: PaletteKey;
   labelColor: PaletteKey;
-}
+};
 
 const TOKENS_DEFAULTS: TokensStyle = { from: "mauve", to: "sky", labelColor: "text" };
 
@@ -111,8 +108,7 @@ interface ContextValue {
   samples: number[];
 }
 
-interface ContextStyle {
-  [key: string]: unknown;
+type ContextStyle = {
   sparklineWindow: number;
   trendSlopeThreshold: number;
   from: PaletteKey;
@@ -121,7 +117,7 @@ interface ContextStyle {
   risingColor: PaletteKey;
   fallingColor: PaletteKey;
   steadyColor: PaletteKey;
-}
+};
 
 const CONTEXT_DEFAULTS: ContextStyle = {
   sparklineWindow: 8,
@@ -166,11 +162,10 @@ const contextMetric: Metric<ContextValue> = {
   },
 };
 
-interface ModelStyle {
-  [key: string]: unknown;
+type ModelStyle = {
   from: PaletteKey;
   to: PaletteKey;
-}
+};
 
 const MODEL_DEFAULTS: ModelStyle = { from: "mauve", to: "sky" };
 
@@ -200,14 +195,13 @@ interface RateValue {
   rl7Reset: string | number | null;
 }
 
-interface RateStyle {
-  [key: string]: unknown;
+type RateStyle = {
   warnAt: number;
   from: PaletteKey;
   to: PaletteKey;
   mutedColor: PaletteKey;
   mutedResetColor: PaletteKey;
-}
+};
 
 const RATE_DEFAULTS: RateStyle = { warnAt: 80, from: "green", to: "red", mutedColor: "overlay0", mutedResetColor: "overlay2" };
 
@@ -252,13 +246,12 @@ const rateMetric: Metric<RateValue> = {
   },
 };
 
-interface ToolsStyle {
-  [key: string]: unknown;
+type ToolsStyle = {
   categoryOrder: ToolCategory[];
   glyphs: Record<ToolCategory, string>;
   labelColor: PaletteKey;
   countColor: PaletteKey;
-}
+};
 
 // Which raw tool name maps to which bucket is fixed in code (src/tools,
 // since it's Claude Code's own tool vocabulary and not user data); which
@@ -293,7 +286,7 @@ const toolsMetric: Metric<Partial<Record<ToolCategory, number>>> = {
   priority: 40,
   width: 15,
   styleDefaults: TOOLS_DEFAULTS,
-  compute: (ctx) => bucketToolCounts(ctx.mined.toolCounts),
+  compute: (ctx) => bucketToolCounts(ctx.mined.toolCounts, ctx.bucketFor),
   render: (bucket, ctx) => {
     const s = ctx.style.settings("tools", TOOLS_DEFAULTS);
     const label = ctx.style.color(s.labelColor);
@@ -302,11 +295,10 @@ const toolsMetric: Metric<Partial<Record<ToolCategory, number>>> = {
   },
 };
 
-interface ToolErrorsStyle {
-  [key: string]: unknown;
+type ToolErrorsStyle = {
   glyph: string;
   color: PaletteKey;
-}
+};
 
 const TOOL_ERRORS_DEFAULTS: ToolErrorsStyle = { glyph: "\uF071", color: "red" }; // fa-warning
 
@@ -328,15 +320,14 @@ const toolErrorsMetric: Metric<number> = {
   },
 };
 
-interface PermissionStyle {
-  [key: string]: unknown;
+type PermissionStyle = {
   glyph: string;
   /** Mode -> severity color. Claude Code's own permission-mode vocabulary,
    * not exhaustive by design: an unrecognized mode still renders, in
    * defaultColor, rather than disappearing. */
   colors: Record<string, PaletteKey>;
   defaultColor: PaletteKey;
-}
+};
 
 // The known modes as of writing, used only to typo-check the defaults
 // below via `satisfies`; PermissionStyle.colors itself stays open (see its

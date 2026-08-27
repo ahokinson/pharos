@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { bucketFor } from "@adapters/claude-code/bucket";
 import { bucketToolCounts } from "@tools/bucket";
 
-describe("bucketToolCounts", () => {
+describe("bucketToolCounts (Claude Code vocabulary)", () => {
   test("folds tool names into their fixed categories", () => {
-    const bucket = bucketToolCounts({ Edit: 2, Write: 1, Read: 3, Bash: 1, Grep: 1, Task: 1, SomethingElse: 5 });
+    const bucket = bucketToolCounts({ Edit: 2, Write: 1, Read: 3, Bash: 1, Grep: 1, Task: 1, SomethingElse: 5 }, bucketFor);
     expect(bucket.edits).toBe(3);
     expect(bucket.reads).toBe(3);
     expect(bucket.runs).toBe(1);

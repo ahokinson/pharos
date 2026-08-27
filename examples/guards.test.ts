@@ -1,7 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { claudeCodeAdapter } from "@adapters/claude-code";
 import { stripAnsi } from "@color";
 import { mergeConfig } from "@config";
 import { buildStyleKit } from "@metrics";
@@ -40,6 +41,15 @@ const MINED: MiningState = {
 };
 
 describe("examples/guards.ts", () => {
+  const realStateHome = process.env.XDG_STATE_HOME;
+
+  afterEach(() => {
+    // Bun runs all test files in one process; without this restore, the
+    // override leaks into whatever test file runs after this one.
+    if (realStateHome === undefined) delete process.env.XDG_STATE_HOME;
+    else process.env.XDG_STATE_HOME = realStateHome;
+  });
+
   test("plugin shape matches what loadPlugins expects", () => {
     expect(guardsPlugin.metrics).toHaveLength(1);
     expect(guardsPlugin.metrics![0]!.id).toBe("guards");
@@ -77,6 +87,7 @@ describe("examples/guards.ts", () => {
       config,
       style: buildStyleKit(config),
       process: { commandExists, checkHealth },
+      bucketFor: claudeCodeAdapter.bucketFor,
     };
 
     const metric = guardsPlugin.metrics![0]!;

@@ -14,6 +14,9 @@ export interface Field {
 
 const PINNED_PRIORITY = 100;
 
+/** Column fallback when neither COLUMNS nor the terminal reports a width. */
+export const FALLBACK_COLUMNS = 80;
+
 function composeRow(fields: Field[], active: boolean[], row: RowNumber): string {
   const texts = fields.filter((f, i) => active[i] && f.line === row).map((f) => f.text);
   return (texts.length ? ` ${texts.join("  ")}` : "") + RESET;
@@ -24,9 +27,13 @@ export function fitRow(fields: Field[], row: RowNumber, cols: number): string {
   let rendered = composeRow(fields, active, row);
   while (visibleWidth(rendered) > cols) {
     let lowest = -1;
+    let lowestPriority = Infinity;
     fields.forEach((f, i) => {
       if (!active[i] || f.priority >= PINNED_PRIORITY || f.line !== row) return;
-      if (lowest === -1 || f.priority < fields[lowest]!.priority) lowest = i;
+      if (f.priority < lowestPriority) {
+        lowest = i;
+        lowestPriority = f.priority;
+      }
     });
     if (lowest === -1) break;
     active[lowest] = false;

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { claudeCodeAdapter } from "@adapters/claude-code";
 import { mergeConfig } from "@config";
 import type { ResolvedPlugins } from "@plugin";
 import { checkHealth, commandExists } from "@process";
@@ -49,6 +50,7 @@ function makeCtx(config = mergeConfig({})): MetricContext {
     config,
     style: buildStyleKit(config),
     process: { commandExists, checkHealth },
+    bucketFor: claudeCodeAdapter.bucketFor,
   };
 }
 
@@ -56,24 +58,32 @@ describe("buildRegistry", () => {
   test("a plugin metric id shadows a built-in with the same id", () => {
     const config = mergeConfig({ fieldOrder: ["cost"] });
     const custom: Metric<string> = { id: "cost", compute: () => "custom", render: (v) => v };
-    const registry = buildRegistry(config, emptyResolved({ metrics: { cost: custom } }));
+    const { registry } = buildRegistry(config, emptyResolved({ metrics: { cost: custom } }));
     expect(registry.cost).toBe(custom);
   });
 
   test("backfills row/priority/width from a plugin metric's own defaults when config doesn't set them", () => {
     const config = mergeConfig({});
     const custom: Metric<string> = { id: "myPlugin", row: 2, priority: 5, width: 10, compute: () => "x", render: (v) => v };
-    buildRegistry(config, emptyResolved({ metrics: { myPlugin: custom } }));
-    expect(config.fieldSettings.myPlugin).toEqual({ row: 2, priority: 5 });
-    expect(config.widths.myPlugin).toBe(10);
+    const { config: effective } = buildRegistry(config, emptyResolved({ metrics: { myPlugin: custom } }));
+    expect(effective.fieldSettings.myPlugin).toEqual({ row: 2, priority: 5 });
+    expect(effective.widths.myPlugin).toBe(10);
   });
 
   test("leaves an already-configured id's fieldSettings/widths alone", () => {
     const config = mergeConfig({ fieldSettings: { myPlugin: { row: 1, priority: 99 } }, widths: { myPlugin: 3 } });
     const custom: Metric<string> = { id: "myPlugin", row: 2, priority: 5, width: 10, compute: () => "x", render: (v) => v };
+    const { config: effective } = buildRegistry(config, emptyResolved({ metrics: { myPlugin: custom } }));
+    expect(effective.fieldSettings.myPlugin).toEqual({ row: 1, priority: 99 });
+    expect(effective.widths.myPlugin).toBe(3);
+  });
+
+  test("does not mutate the caller's config", () => {
+    const config = mergeConfig({});
+    const custom: Metric<string> = { id: "myPlugin", row: 2, priority: 5, width: 10, compute: () => "x", render: (v) => v };
     buildRegistry(config, emptyResolved({ metrics: { myPlugin: custom } }));
-    expect(config.fieldSettings.myPlugin).toEqual({ row: 1, priority: 99 });
-    expect(config.widths.myPlugin).toBe(3);
+    expect(config.fieldSettings.myPlugin).toBeUndefined();
+    expect(config.widths.myPlugin).toBeUndefined();
   });
 });
 
@@ -87,14 +97,14 @@ describe("buildFieldTexts", () => {
       },
       render: () => "unreachable",
     };
-    const registry = buildRegistry(config, emptyResolved({ metrics: { broken } }));
+    const { registry } = buildRegistry(config, emptyResolved({ metrics: { broken } }));
     const texts = buildFieldTexts(makeCtx(config), registry);
     expect(texts.broken).toBeNull();
   });
 
   test("skips ids in fieldOrder that aren't in the registry", () => {
     const config = mergeConfig({ fieldOrder: ["ghost"] });
-    const texts = buildFieldTexts(makeCtx(config), buildRegistry(config, emptyResolved()));
+    const texts = buildFieldTexts(makeCtx(config), buildRegistry(config, emptyResolved()).registry);
     expect(texts.ghost).toBeUndefined();
   });
 });

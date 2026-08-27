@@ -5,25 +5,35 @@ import { BUILTIN_METRICS } from "@metrics/builtins";
 import { safeRender } from "@metrics/safe";
 import type { Metric, MetricContext } from "@metrics/types";
 
+export interface RegistryResult {
+  registry: Record<string, Metric>;
+  /** Shallow copy of the input config with each registry id's own
+   * row/priority/width/style preferences backfilled wherever the user
+   * hadn't already set them — the same "used only if config doesn't
+   * already set it" rule plugin authors get for free, built-ins included.
+   * The metricStyle backfill isn't load-bearing for rendering
+   * (StyleKit.settings merges a metric's own defaults at read time
+   * regardless), but it makes config.metricStyle show the effective
+   * defaults for `pharos list --json` and hand-editing. */
+  config: Config;
+}
+
 /** Merges built-in metrics with plugin-registered ones (a plugin id
- * matching a built-in shadows it) and backfills each metric's own
- * row/priority/width/style preferences into config wherever the user
- * hasn't already set them, the same "used only if config doesn't already
- * set it" rule plugin authors get for free, built-ins included. The
- * metricStyle backfill isn't load-bearing for rendering (StyleKit.settings
- * merges a metric's own defaults at read time regardless), but it makes
- * config.metricStyle show the effective defaults for `pharos list --json`
- * and hand-editing. */
-export function buildRegistry(config: Config, resolved: ResolvedPlugins): Record<string, Metric> {
+ * matching a built-in shadows it). Does not mutate the caller's config:
+ * the backfilled copy comes back alongside the registry. */
+export function buildRegistry(config: Config, resolved: ResolvedPlugins): RegistryResult {
   const registry: Record<string, Metric> = { ...BUILTIN_METRICS };
   for (const [id, metric] of Object.entries(resolved.metrics)) registry[id] = metric;
 
+  const fieldSettings = { ...config.fieldSettings };
+  const widths = { ...config.widths };
+  const metricStyle = { ...config.metricStyle };
   for (const metric of Object.values(registry)) {
-    config.fieldSettings[metric.id] ??= { row: metric.row ?? 1, priority: metric.priority ?? 50 };
-    config.widths[metric.id] ??= metric.width ?? 0;
-    config.metricStyle[metric.id] ??= structuredClone(metric.styleDefaults ?? {});
+    fieldSettings[metric.id] ??= { row: metric.row ?? 1, priority: metric.priority ?? 50 };
+    widths[metric.id] ??= metric.width ?? 0;
+    metricStyle[metric.id] ??= structuredClone(metric.styleDefaults ?? {});
   }
-  return registry;
+  return { registry, config: { ...config, fieldSettings, widths, metricStyle } };
 }
 
 /** Computes every id in config.fieldOrder, width-padded. Iterates

@@ -1,6 +1,8 @@
+import { AdapterName } from "@adapters/types";
 import { resolvePalette } from "@color";
 import { FIELD_NAMES } from "@config/types";
 import type { Config, FieldName, FieldSetting } from "@config/types";
+import { DEFAULT_SAMPLE_CAP } from "@session/mining";
 
 // "permission" is a valid built-in (opt into it via fieldOrder) but is left
 // out of the default order: Claude Code already surfaces the live
@@ -33,6 +35,7 @@ const DEFAULT_WIDTHS: Record<FieldName, number> = {
 
 export function defaultConfig(): Config {
   return {
+    tool: AdapterName.ClaudeCode,
     palette: resolvePalette(),
     fieldOrder: [...DEFAULT_FIELD_ORDER],
     fieldSettings: structuredClone(DEFAULT_FIELD_SETTINGS),
@@ -41,7 +44,7 @@ export function defaultConfig(): Config {
     // defaults over whatever (possibly partial) override lives here, at
     // read time, so config itself doesn't need to know any metric's shape.
     metricStyle: {},
-    context: { sampleCap: 40 },
+    context: { sampleCap: DEFAULT_SAMPLE_CAP },
     pulse: {
       tail: 200,
       stepMs: 33,

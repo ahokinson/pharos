@@ -1,3 +1,4 @@
+import { parseAdapterName } from "@adapters/registry";
 import { resolvePalette } from "@color";
 import { defaultConfig } from "@config/defaults";
 import { expandEnv } from "@config/env";
@@ -13,15 +14,16 @@ export function mergeConfig(raw: RawConfig): Config {
   const fieldIds = Object.keys({ ...base.fieldSettings, ...raw.fieldSettings });
   const styleIds = Object.keys({ ...base.metricStyle, ...raw.metricStyle });
 
+  const fieldSettings: Record<string, FieldSetting> = {};
+  for (const name of fieldIds) {
+    fieldSettings[name] = { ...(base.fieldSettings[name] ?? FALLBACK_FIELD_SETTING), ...raw.fieldSettings?.[name] };
+  }
+
   return {
+    tool: parseAdapterName(raw.tool) ?? base.tool,
     palette: raw.palette ? resolvePalette(raw.palette) : base.palette,
     fieldOrder: raw.fieldOrder ?? base.fieldOrder,
-    fieldSettings: Object.fromEntries(
-      fieldIds.map((name) => [
-        name,
-        { ...(base.fieldSettings[name] ?? FALLBACK_FIELD_SETTING), ...raw.fieldSettings?.[name] },
-      ]),
-    ) as Record<string, FieldSetting>,
+    fieldSettings,
     widths: { ...base.widths, ...raw.widths },
     metricStyle: Object.fromEntries(
       styleIds.map((id) => [id, { ...base.metricStyle[id], ...raw.metricStyle?.[id] }]),

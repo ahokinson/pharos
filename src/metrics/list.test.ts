@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mergeConfig } from "@config";
-import { runList } from "@metrics/discover";
+import { runList } from "@metrics/list";
 
 describe("runList", () => {
   let dir: string;

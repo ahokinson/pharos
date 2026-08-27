@@ -3,4 +3,4 @@ export { buildStyleKit, countdown, humanize, ramp, sparkline, trend } from "@met
 export { safeRender } from "@metrics/safe";
 export { BUILTIN_METRICS } from "@metrics/builtins";
 export { buildRegistry, buildFieldTexts } from "@metrics/registry";
-export { runList } from "@metrics/discover";
+export { runList } from "@metrics/list";
