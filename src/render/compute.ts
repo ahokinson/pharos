@@ -12,13 +12,18 @@ export interface ComputedRows {
   row2: string;
 }
 
+/** Per-row width budgets, since the delivery surface may give each row its
+ * own terminal line (tmux status-format) rather than stacking them. */
+export interface RowBudgets {
+  row1: number;
+  row2: number;
+}
+
 /** The one place a host's raw hook/stdin payload turns into rendered field
- * text, shared by both delivery surfaces: `render/index.ts`'s stdin path
- * (Claude Code's statusLine contract) and `tmux/render.ts`'s tmux-status
- * path (see adapters/types.ts's TmuxStatusSupport). `raw` is whatever the
- * calling entrypoint read from stdin — the resolved adapter's parseSession
- * decides what to make of it. */
-export async function computeRows(raw: unknown, config: Config, cols: number): Promise<ComputedRows> {
+ * text for the tmux status surface (see adapters/types.ts's
+ * TmuxStatusSupport). `raw` is whatever the calling entrypoint read from
+ * stdin — the resolved adapter's parseSession decides what to make of it. */
+export async function computeRows(raw: unknown, config: Config, budgets: RowBudgets): Promise<ComputedRows> {
   const adapter = resolveAdapter(config);
   const session = adapter.parseSession(raw);
   const nowEpoch = Math.floor(Date.now() / 1000);
@@ -52,5 +57,5 @@ export async function computeRows(raw: unknown, config: Config, cols: number): P
     fields.push({ line: setting.row, text, priority: setting.priority });
   }
 
-  return { row1: fitRow(fields, 1, cols), row2: fitRow(fields, 2, cols) };
+  return { row1: fitRow(fields, 1, budgets.row1), row2: fitRow(fields, 2, budgets.row2) };
 }

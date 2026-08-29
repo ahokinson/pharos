@@ -35,7 +35,7 @@ const DEFAULT_WIDTHS: Record<FieldName, number> = {
 
 export function defaultConfig(): Config {
   return {
-    tool: AdapterName.ClaudeCode,
+    tool: AdapterName.Claude,
     palette: resolvePalette(),
     fieldOrder: [...DEFAULT_FIELD_ORDER],
     fieldSettings: structuredClone(DEFAULT_FIELD_SETTINGS),

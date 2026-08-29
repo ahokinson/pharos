@@ -2,15 +2,15 @@
 import { parseAdapterName } from "@adapters/registry";
 import { loadConfig } from "@config";
 import { runList } from "@metrics";
-import { render } from "@render";
 import { dispatch } from "@tmux/dispatch";
+import { initTmux } from "@tmux/init";
 import { pulse } from "@tmux/pulse";
 import { renderToTmux } from "@tmux/render";
 import pkg from "../package.json" with { type: "json" };
 
 function usage(): never {
   console.error(
-    "Usage: pharos [--tool=<id>] render | pharos list [--json] | pharos tmux dispatch <state> | pharos tmux pulse <session> <token> | pharos tmux render | pharos --version",
+    "Usage: pharos [--tool=<id>] tmux init | pharos tmux render | pharos tmux dispatch <state> | pharos tmux pulse <session> <token> | pharos list [--json] | pharos --version",
   );
   process.exit(2);
 }
@@ -27,7 +27,7 @@ for (const arg of process.argv.slice(2)) {
 const [command, ...rest] = argv;
 
 // Precedence: --tool flag, then PHAROS_TOOL env var, then config.tool (see
-// config/merge.ts), then the AdapterName.ClaudeCode default. An unrecognized
+// config/merge.ts), then the AdapterName.Claude default. An unrecognized
 // value from either the flag or the env var is ignored (fails open to
 // config/the default) rather than erroring, same philosophy as config
 // merging itself.
@@ -44,8 +44,15 @@ switch (command) {
     console.log(`pharos ${pkg.version}`);
     break;
   case "render":
-    await render(rest, await loadConfigWithToolOverride());
-    break;
+    // Removed when pharos aligned on tmux as its one rendering surface;
+    // kept as a loud pointer so a stale statusLine/hook config fails with
+    // instructions instead of silence.
+    console.error(
+      "pharos: 'pharos render' is gone — pharos now renders in tmux's status bar for every host. " +
+        "Run 'pharos tmux init' to wire the status bar, point your host's hooks at 'pharos tmux render', " +
+        "and remove any statusLine entry pointing here (see README).",
+    );
+    process.exit(1);
   case "list":
     await runList(rest, await loadConfigWithToolOverride());
     break;
@@ -54,6 +61,7 @@ switch (command) {
     if (sub === "dispatch") await dispatch(tmuxArgs, await loadConfigWithToolOverride());
     else if (sub === "pulse") await pulse(tmuxArgs, await loadConfigWithToolOverride());
     else if (sub === "render") await renderToTmux(tmuxArgs, await loadConfigWithToolOverride());
+    else if (sub === "init") await initTmux(tmuxArgs, await loadConfigWithToolOverride());
     else usage();
     break;
   }

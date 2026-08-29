@@ -7,24 +7,19 @@ import type { ToolCategory } from "@tools/bucket";
 // adapters/registry.ts and the CLI's --tool/PHAROS_TOOL/config.tool
 // resolution touch it.
 export enum AdapterName {
-  ClaudeCode = "claude-code",
+  Claude = "claude",
   Codex = "codex",
   Cursor = "cursor",
   Opencode = "opencode",
   Hermes = "hermes",
 }
 
-// The host's own in-app bottom-bar/status area, via a command-backed
-// stdin-JSON contract equivalent to Claude Code's `statusLine`.
-export enum InAppStatuslineSupport {
-  NativeStdin = "native-stdin",
-  Unsupported = "unsupported",
-}
-
 // Rendering full metric text (not just a think/tool/ask pulse token) into a
 // tmux status-bar segment, refreshed by the host's own hooks/events. This is
-// a host-agnostic delivery surface (see tmux/dispatch.ts + tmux/pulse.ts)
-// and does NOT require InAppStatuslineSupport.
+// pharos's one rendering surface (see tmux/render.ts) and is host-agnostic:
+// NativeHooks means the host fires process-spawned hook commands directly,
+// BridgeRequired means the host only exposes in-process plugin events and
+// needs a small bridge module to shell out.
 export enum TmuxStatusSupport {
   NativeHooks = "native-hooks", // host fires process-spawned hook commands directly
   BridgeRequired = "bridge-required", // host only exposes in-process plugin events; needs a small bridge module to shell out
@@ -49,7 +44,6 @@ export interface HostAdapter {
   isIdleNotification(stdin: unknown): boolean;
   bucketFor(toolName: string): ToolCategory;
   capabilities: {
-    inAppStatusline: InAppStatuslineSupport;
     tmuxStatus: TmuxStatusSupport;
     mining: MiningSupport;
   };

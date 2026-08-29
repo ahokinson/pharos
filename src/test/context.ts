@@ -1,4 +1,4 @@
-import { claudeCodeAdapter } from "@adapters/claude-code";
+import { claudeAdapter } from "@adapters/claude";
 import { mergeConfig } from "@config";
 import { checkHealth, commandExists } from "@process";
 import { DEFAULT_CTX_SIZE } from "@session/session";
@@ -46,6 +46,6 @@ export function makeCtx(opts: { session?: Partial<Session>; mined?: Partial<Mini
     config,
     style: buildStyleKit(config),
     process: { commandExists, checkHealth },
-    bucketFor: claudeCodeAdapter.bucketFor,
+    bucketFor: claudeAdapter.bucketFor,
   };
 }

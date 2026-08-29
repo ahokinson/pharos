@@ -1,4 +1,4 @@
-import { AdapterName, InAppStatuslineSupport, MiningSupport, TmuxStatusSupport } from "@adapters/types";
+import { AdapterName, MiningSupport, TmuxStatusSupport } from "@adapters/types";
 import type { HostAdapter } from "@adapters/types";
 import { bucketFor } from "@adapters/codex/bucket";
 import { mineTranscript } from "@adapters/codex/mining";
@@ -12,9 +12,6 @@ export const codexAdapter: HostAdapter = {
   isIdleNotification,
   bucketFor,
   capabilities: {
-    // No command-backed in-app statusline exists yet (open, unshipped
-    // feature requests: openai/codex#20140, #17827).
-    inAppStatusline: InAppStatuslineSupport.Unsupported,
     // Codex's hooks are spawned-process commands with session_id/
     // transcript_path/etc on stdin, same shape tmux dispatch/render need —
     // see session.ts for exactly which fields are and aren't verified.

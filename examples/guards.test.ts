@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { claudeCodeAdapter } from "@adapters/claude-code";
+import { claudeAdapter } from "@adapters/claude";
 import { stripAnsi } from "@color";
 import { mergeConfig } from "@config";
 import { buildStyleKit } from "@metrics";
@@ -87,7 +87,7 @@ describe("examples/guards.ts", () => {
       config,
       style: buildStyleKit(config),
       process: { commandExists, checkHealth },
-      bucketFor: claudeCodeAdapter.bucketFor,
+      bucketFor: claudeAdapter.bucketFor,
     };
 
     const metric = guardsPlugin.metrics![0]!;

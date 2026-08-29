@@ -1,4 +1,9 @@
-// Session JSON: the contract with Claude Code's statusLine stdin.
+// Session JSON: what a Claude Code hook hands pharos on stdin. The schema
+// is the union of Claude Code's payload shapes: hooks reliably carry
+// session_id/transcript_path, while the richer statusLine-era fields
+// (model, context_window, cost, rate_limits) survive here so a payload
+// that has them still enriches — and one that doesn't fails open to the
+// defaults below (cost/rate reading empty under hook-only rendering).
 import { z } from "zod";
 
 import { DEFAULT_CTX_SIZE, NO_SESSION_ID } from "@session/session";

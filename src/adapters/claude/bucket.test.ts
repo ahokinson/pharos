@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { bucketFor } from "@adapters/claude-code/bucket";
+import { bucketFor } from "@adapters/claude/bucket";
 import { bucketToolCounts } from "@tools/bucket";
 
 describe("bucketToolCounts (Claude Code vocabulary)", () => {

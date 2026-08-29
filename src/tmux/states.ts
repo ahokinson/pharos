@@ -1,6 +1,6 @@
-// The states dispatch() writes to the @claude_pulse tmux option and
-// pulse() reads back every animation frame. think/tool/ask animate a tail;
-// off clears it.
+// dispatch() writes these states to a pane's @pharos_pulse option and the
+// session ticker reads them every animation frame. think/tool/ask animate a
+// tail; off clears that pane's activity.
 export enum PulseState {
   Think = "think",
   Tool = "tool",

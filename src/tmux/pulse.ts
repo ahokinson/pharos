@@ -4,25 +4,24 @@ import { commandExists, runSync } from "@process";
 import { isAnimatedState, PulseState } from "@tmux/states";
 import type { AnimatedState } from "@tmux/states";
 
-function themeColor(name: string, fallback: string): string {
-  const value = runSync(["tmux", "show", "-gv", name]).stdout.trim();
-  return value || fallback;
-}
-
 const DEFAULT_TRACK_WIDTH = 24;
 const MIN_TRACK_WIDTH = 10;
+const MAX_LANES = 2;
 
-// Track width = client width minus the tabs, so the pulse lands right after
-// them. Each catppuccin tab renders " #I  #W " (index + name + 4 padding
-// cells); the W: format iterates every window, so measuring it with a
-// 4-char pad gives sum(4 + index + name). One tmux call fetches all three.
+export interface ActivePane {
+  id: string;
+  index: number;
+  state: AnimatedState;
+}
+
+function themeColor(name: string, fallback: string): string {
+  return runSync(["tmux", "show", "-gv", name]).stdout.trim() || fallback;
+}
+
+// Track width = client width minus the tabs, so lane one lands after them.
 function measureWidth(sessionId: string, config: Config): number | null {
   const result = runSync([
-    "tmux",
-    "display",
-    "-p",
-    "-t",
-    sessionId,
+    "tmux", "display", "-p", "-t", sessionId,
     "#{client_width}|#{session_windows}|#{W:xxxx#{window_index}#{window_name},xxxx#{window_index}#{window_name}}",
   ]);
   if (!result.ok) return null;
@@ -30,87 +29,83 @@ function measureWidth(sessionId: string, config: Config): number | null {
   if (!clientWidthStr) return null;
   const clientWidth = Number(clientWidthStr);
   const windowCount = Number(windowCountStr) || 1;
-  const width =
-    clientWidth - config.pulse.statusLeft - tabsText.length - (windowCount - 1) - config.pulse.leadSpace - config.pulse.margin;
-  return Math.max(MIN_TRACK_WIDTH, width);
+  return Math.max(MIN_TRACK_WIDTH, clientWidth - config.pulse.statusLeft - tabsText.length - (windowCount - 1) - config.pulse.leadSpace - config.pulse.margin);
 }
 
-// Renders the status-bar pulse: writes an animation frame to @claude_frame
-// and asks tmux to redraw (tmux's own status-interval only ticks at 1s, too
-// coarse to animate). Spawned once per session by dispatch() via
-// `tmux run-shell -b`, so it runs under the tmux server, independent of
-// Claude's process tree, and exits when @claude_pulse clears.
+/** Parses tmux's pane/state listing and keeps only active pharos panes, in
+ * stable visual order. Exported so the scheduling policy is unit-testable. */
+export function activePanesFrom(output: string): ActivePane[] {
+  return output.trim().split("\n").flatMap((line) => {
+    const [id, indexText, state] = line.split("|");
+    if (!id || !state || !isAnimatedState(state)) return [];
+    return [{ id, index: Number(indexText) || 0, state }];
+  }).sort((a, b) => a.index - b.index || a.id.localeCompare(b.id));
+}
+
+function activePanes(sessionId: string): ActivePane[] {
+  const result = runSync(["tmux", "list-panes", "-t", sessionId, "-F", "#{pane_id}|#{pane_index}|#{@pharos_pulse}"]);
+  return result.ok ? activePanesFrom(result.stdout) : [];
+}
+
+function frameFor(width: number, head: number, tail: string[], overflow: number): string {
+  let frame = "";
+  for (let cell = 0; cell < width; cell++) {
+    const distance = head - cell;
+    frame += distance >= 0 && distance < tail.length ? `#[fg=${tail[distance]}]█` : " ";
+  }
+  if (overflow > 0) frame += `#[default] +${overflow}`;
+  return `${frame}#[default]`;
+}
+
+// One ticker per tmux session scans its panes every frame and draws up to
+// two independent lighthouse lanes. Activity is global; detailed rows are
+// pane-local and handled by render.ts.
 export async function pulse(args: string[], config: Config): Promise<void> {
   const [sessionId, token] = args;
-  if (!sessionId) return;
-  if (!commandExists("tmux")) return;
+  if (!sessionId || !commandExists("tmux")) return;
 
-  const { tail: TAIL, stepMs: STEP_MS, sweep: SWEEP, gapFraction: GAP_FRACTION, remeasureEvery: REMEASURE_EVERY } = config.pulse;
+  const { tail: tailLength, stepMs, sweep, gapFraction, remeasureEvery } = config.pulse;
   const { themeVars, fallbackColors } = config.pulse;
-
-  const thinkColor = themeColor(themeVars.think, fallbackColors.think);
-  const toolColor = themeColor(themeVars.tool, fallbackColors.tool);
-  const askColor = themeColor(themeVars.ask, fallbackColors.ask);
-  const backgroundColor = themeColor(themeVars.background, fallbackColors.background);
-
+  const background = themeColor(themeVars.background, fallbackColors.background);
   const tails: Record<AnimatedState, string[]> = {
-    [PulseState.Think]: buildTail(thinkColor, backgroundColor, TAIL),
-    [PulseState.Tool]: buildTail(toolColor, backgroundColor, TAIL),
-    [PulseState.Ask]: buildTail(askColor, backgroundColor, TAIL),
+    [PulseState.Think]: buildTail(themeColor(themeVars.think, fallbackColors.think), background, tailLength),
+    [PulseState.Tool]: buildTail(themeColor(themeVars.tool, fallbackColors.tool), background, tailLength),
+    [PulseState.Ask]: buildTail(themeColor(themeVars.ask, fallbackColors.ask), background, tailLength),
   };
 
   let width = measureWidth(sessionId, config) ?? DEFAULT_TRACK_WIDTH;
-  let speed = Math.max(1, width / SWEEP);
-  // A continuous cell offset advanced by `speed` each frame; no modulo wrap,
-  // so the tail never reappears on the left as the head exits right. It
-  // climbs past the right edge and through a blank gap before resetting.
+  let speed = Math.max(1, width / sweep);
   let headPosition = 0;
   let frameCount = 0;
 
   while (true) {
-    // One call reads the state and the current owner token. Exit if the
-    // turn ended (empty state) or a newer ticker took ownership (token
-    // changed) - the latter stops duplicates fighting over @claude_frame.
-    const result = runSync(["tmux", "display", "-p", "-t", sessionId, "#{@claude_pulse}|#{@claude_ticker}"]);
-    if (!result.ok) break;
-    const [state, owner] = result.stdout.trim().split("|");
-    if (!state) break;
+    const owner = runSync(["tmux", "show", "-v", "-t", sessionId, "@pharos_ticker"]).stdout.trim();
     if (owner !== token) break;
 
-    const tail = isAnimatedState(state) ? tails[state] : tails[PulseState.Think];
-
-    if (frameCount % REMEASURE_EVERY === 0) {
+    const panes = activePanes(sessionId);
+    if (panes.length === 0) break;
+    if (frameCount % remeasureEvery === 0) {
       width = measureWidth(sessionId, config) ?? width;
-      speed = Math.max(1, width / SWEEP);
+      speed = Math.max(1, width / sweep);
     }
+
     const head = Math.floor(headPosition);
-
-    let frame = "";
-    for (let cell = 0; cell < width; cell++) {
-      const distance = head - cell;
-      if (distance >= 0 && distance < TAIL) {
-        frame += `#[fg=${tail[distance]}]█`;
-      } else {
-        frame += " ";
-      }
-    }
-    frame += "#[default]";
-
-    runSync(["tmux", "set", "-t", sessionId, "@claude_frame", frame, ";", "refresh-client", "-S"]);
+    const first = panes[0]!;
+    const second = panes[1];
+    const overflow = Math.max(0, panes.length - MAX_LANES);
+    runSync([
+      "tmux", "set", "-t", sessionId, "@pharos_frame1", frameFor(width, head, tails[first.state], 0), ";",
+      "set", "-t", sessionId, "@pharos_frame2", second ? frameFor(width, head + Math.floor(width / 2), tails[second.state], overflow) : "", ";",
+      "refresh-client", "-S",
+    ]);
 
     headPosition += speed;
-    const resetAt = width + TAIL + width * GAP_FRACTION;
-    if (headPosition >= resetAt) headPosition = 0;
+    if (headPosition >= width + tailLength + width * gapFraction) headPosition = 0;
     frameCount += 1;
-    await Bun.sleep(STEP_MS);
+    await Bun.sleep(stepMs);
   }
 
-  // Only clear shared state if we still own it; a newer ticker may have
-  // taken over.
-  const currentOwner = runSync(["tmux", "show", "-v", "-t", sessionId, "@claude_ticker"]).stdout.trim();
-  if (currentOwner === token) {
-    runSync(["tmux", "set", "-u", "-t", sessionId, "@claude_ticker"]);
-    runSync(["tmux", "set", "-u", "-t", sessionId, "@claude_frame"]);
-    runSync(["tmux", "refresh-client", "-S"]);
+  if (runSync(["tmux", "show", "-v", "-t", sessionId, "@pharos_ticker"]).stdout.trim() === token) {
+    runSync(["tmux", "set", "-u", "-t", sessionId, "@pharos_ticker", ";", "set", "-u", "-t", sessionId, "@pharos_frame1", ";", "set", "-u", "-t", sessionId, "@pharos_frame2", ";", "refresh-client", "-S"]);
   }
 }

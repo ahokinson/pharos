@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mineTranscript } from "@adapters/claude-code/mining";
+import { mineTranscript } from "@adapters/claude/mining";
 import type { MiningState } from "@session/mining";
 
 function emptyState(): MiningState {

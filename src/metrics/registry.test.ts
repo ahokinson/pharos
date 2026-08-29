@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { claudeCodeAdapter } from "@adapters/claude-code";
+import { claudeAdapter } from "@adapters/claude";
 import { mergeConfig } from "@config";
 import type { ResolvedPlugins } from "@plugin";
 import { checkHealth, commandExists } from "@process";
@@ -50,7 +50,7 @@ function makeCtx(config = mergeConfig({})): MetricContext {
     config,
     style: buildStyleKit(config),
     process: { commandExists, checkHealth },
-    bucketFor: claudeCodeAdapter.bucketFor,
+    bucketFor: claudeAdapter.bucketFor,
   };
 }
 

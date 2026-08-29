@@ -4,19 +4,16 @@ import { DEFAULT_CTX_SIZE, NO_SESSION_ID } from "@session/session";
 import type { Session } from "@session/session";
 
 // UNVERIFIED: field names below come from Codex CLI's published hooks
-// documentation (learn.chatgpt.com/docs/hooks, checked Aug 2026), not from
-// an observed real hook invocation — no hooks were configured on the
+// documentation (learn.chat.chatgpt.com/docs/hooks, checked Aug 2026), not
+// from an observed real hook invocation — no hooks were configured on the
 // machine this was written on. Re-check against a real PreToolUse/
 // SessionStart payload before relying on this.
 //
-// Unlike Claude Code, Codex has no command-backed statusline contract
-// (capabilities.inAppStatusline is Unsupported — see adapters/codex/index.ts),
-// so this never receives a rich stdin blob the way Claude Code's
-// SessionInput does. It receives whatever JSON a Codex hook itself passes
-// on stdin — cost/lines-added/removed and rate-limit fields simply don't
-// exist at this layer for Codex (rate limits do appear in the transcript's
-// own token_count events — see mining.ts — but MiningState has no field for
-// them yet; a future extension, not solved here).
+// The payload is whatever JSON a Codex hook passes on stdin — cost/lines-
+// added/removed and rate-limit fields don't exist at this layer for Codex
+// (rate limits do appear in the transcript's own token_count events — see
+// mining.ts — but MiningState has no field for them yet; a future
+// extension, not solved here).
 export const sessionInputSchema = z.looseObject({
   session_id: z.string().optional(),
   transcript_path: z.string().optional(),

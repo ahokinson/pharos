@@ -2,9 +2,11 @@
 
 [![CI](https://github.com/ahokinson/pharos/actions/workflows/ci.yml/badge.svg)](https://github.com/ahokinson/pharos/actions/workflows/ci.yml)
 
-Renders Claude Code's live session state everywhere it's visible in the
-terminal: the statusline text Claude Code itself polls, and a pulsing
-light sweep in tmux's status bar while the agent is active.
+Renders an AI coding agent's live session state in tmux's status bar: a
+pulsing light sweep while the agent is active, and statusline fields —
+cost, tokens, context burn-down, tool calls — refreshed by the host's own
+hook events. Works with Claude Code, Codex, and
+[opencode](https://opencode.ai).
 
 ## Philosophy
 
@@ -30,29 +32,83 @@ specific tag). Prebuilt binaries cover macOS and Linux, arm64 and x64; see
 [Releases](https://github.com/ahokinson/pharos/releases). To build from
 source instead, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Check `pharos --version` after installing. Wiring it into Claude Code's
-`settings.json` as the `statusLine`/hook commands is still manual for now
-(see [Design](#design) below for the commands to point at); an automated
-`pharos init` is on the roadmap.
+Check `pharos --version` after installing, then run `pharos tmux init`
+from inside a tmux session to wire the status bar. It keeps your normal
+tab line, adds up to two lighthouse lanes, and shows field rows only when
+the selected pane has emitted AI hooks. Wiring the host's hooks to
+`pharos tmux render`/`pharos tmux dispatch` is still manual (see
+[Design](#design) below); an automated `pharos init` covering both sides
+is on the roadmap.
 
 ## Design
 
-One binary, three entry points, sharing color/palette code that today
-is duplicated across two zsh scripts against the same Catppuccin Frappe
+One binary, four entry points, sharing color/palette code that today is
+duplicated across two zsh scripts against the same Catppuccin Frappe
 theme:
 
-- `pharos render` — Claude Code's `statusLine` command: reads session
-  JSON on stdin, prints two rows of coloured fields.
+- `pharos tmux init` — wires the display side in one shot. tmux >= 3.4
+  gets `status 4`: beam lane one stays on the normal tab line, lane two
+  is on `status-format[1]`, and conditional field rows are on lines 3–4.
+  Ordinary shell panes stay quiet; older tmux keeps one beam and selected-
+  pane joined fields in `status-right`.
+- `pharos tmux dispatch <state>` — wired as several Claude Code hooks
+  (PreToolUse/PostToolUse/UserPromptSubmit/Stop/Notification/
+  SessionStart/SessionEnd); flips tmux state to start or stop the pulse,
+  captured on the hook-emitting pane as `#{@pharos_pulse}`.
+- `pharos tmux pulse <session> <token>` — spawned detached via
+  `tmux run-shell -b` by `dispatch`; a ~30fps session loop that animates
+  up to two active-agent lanes (and summarizes overflow), independent of
+  the agents' process trees.
+- `pharos tmux render` — reads the host's JSON on stdin (the same payload
+  `dispatch` gets) and writes rendered field rows to the hook-emitting
+  pane's `#{@pharos_row1}` and `#{@pharos_row2}`, marking that pane as an
+  AI pane. The rows remain available after it becomes idle, until tmux
+  closes the pane. `#{@pharos_status}` is the joined pre-3.4 fallback. Each
+  row has its own status line and budgets the client width in full, so the lowest-priority field (see
+  `fieldSettings`) is what surrenders space first — there's no clutter to
+  trim by hand.
 - `pharos list` — prints every metric pharos knows about, built-in and
   plugin-loaded, with whether it's currently on. See "Discovering metrics"
   below.
-- `pharos tmux dispatch <state>` — wired as several Claude Code hooks
-  (PreToolUse/PostToolUse/UserPromptSubmit/Stop/Notification/
-  SessionStart/SessionEnd); flips tmux state to start or stop the pulse.
-- `pharos tmux pulse <session> <token>` — spawned detached via
-  `tmux run-shell -b` by `dispatch`; a ~30fps loop that animates the
-  status-bar sweep until the turn ends, independent of Claude Code's own
-  process tree.
+
+`tmux init` is reverted by hand with: `tmux set -g status 1 && tmux set -gu
+status-format[1] && tmux set -gu status-format[2] && tmux set -gu
+status-format[3]`.
+
+## Rendering for opencode
+
+pharos can render for [opencode](https://opencode.ai) instead of Claude
+Code: pass `--tool=opencode`, or set `"tool": "opencode"` in config. The
+opencode adapter reads opencode's own history DB
+(`${XDG_DATA_HOME:-~/.local/share}/opencode/opencode-stable.db`; override
+with `PHAROS_OPENCODE_DB`) rather than a JSONL transcript, and rebuilds its
+numbers from aggregate reads on every render — SQLite rows mutate (tool
+parts go running→error, token counts finalize as they stream), so a
+read-once checkpoint would silently miss status changes. The DB schema is
+internal to opencode and migration-owned; if a future migration breaks
+mining, pharos fails open to an unenriched render rather than erroring.
+
+opencode doesn't spawn hook processes itself; it exposes in-process plugin
+events instead. Copy [`examples/opencode-bridge.ts`](examples/opencode-bridge.ts)
+to `~/.config/opencode/plugins/` (or a project's `.opencode/plugins/`),
+restart opencode, and the bridge maps opencode's plugin events onto `pharos
+tmux dispatch`/`tmux render` — the pulsing light while the agent works, and
+the field rows on tmux's two pharos lines. A `task`-spawned subagent
+session folds into the same totals as the main conversation, and opencode's
+plan mode lights up the (opt-in) `permission` field the same way Claude
+Code's does.
+
+## Known gaps
+
+Hosts render differently, and the differences are honest: a Claude Code
+hook payload carries `session_id`/`transcript_path` but not the
+statusline-era fields (cost, rate limit, context window), so those read
+empty under hook-only rendering — transcript mining still feeds tools,
+tokens, tool errors, and permission. Codex has the same story plus a
+smaller verified surface (see `src/adapters/codex/session.ts`). opencode
+gets the full set, since its DB enriches by session id alone. And the bar
+only refreshes while the agent is alive in the first place — its hooks fire
+around the session's own events, so when it exits, the bar falls still.
 
 ## Configuration
 
@@ -180,8 +236,8 @@ new behavior: a metric pharos doesn't compute, styled however you like.
 There's no separate concept for anything more elaborate — `examples/guards.ts`
 (see above) is a full worked example of building something as involved as
 a multi-count health-check shield entirely as an ordinary plugin. Each path
-in `plugins` is dynamically imported at startup (`pharos render` and
-`pharos list` only, not the tmux pulse); a plugin that fails to import, or
+in `plugins` is dynamically imported at startup (`pharos list` and `pharos
+tmux render` only, not the tmux pulse); a plugin that fails to import, or
 throws at render time, is skipped and never breaks the statusline.
 
 **Trust model**: a plugin path is your own code, loaded and run with
@@ -248,6 +304,6 @@ data as JSON, for scripting your own config.
 ## Status
 
 Fully implemented, tested (`bun test`), and running as the live daily
-`statusLine`/hook commands. CI runs typecheck and tests on every PR; tagged
+`tmux render`/hook commands. CI runs typecheck and tests on every PR; tagged
 releases publish prebuilt binaries (see [Installation](#installation)).
 See [CONTRIBUTING.md](CONTRIBUTING.md) for build and test tooling.
