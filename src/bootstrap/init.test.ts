@@ -8,11 +8,6 @@ import { generateBootstrapBundle } from "@bootstrap/init";
 const dirs: string[] = [];
 afterEach(() => {
   while (dirs.length) rmSync(dirs.pop()!, { recursive: true, force: true });
-  // generateBootstrapBundle sets process.exitCode on its usage/collision
-  // paths — correct for the real CLI, but a leaked global when the same
-  // function runs in-process inside a test. Left set, it fails the whole
-  // suite's exit code even though every test passed.
-  process.exitCode = undefined;
 });
 
 describe("generateBootstrapBundle", () => {
@@ -20,7 +15,7 @@ describe("generateBootstrapBundle", () => {
     const root = mkdtempSync(join(tmpdir(), "pharos-init-"));
     dirs.push(root);
     const dir = join(root, "bundle");
-    await generateBootstrapBundle(["--harness", "all", "--output", dir]);
+    expect(await generateBootstrapBundle(["--harness", "all", "--output", dir])).toBe(0);
 
     const manifest = JSON.parse(await Bun.file(join(dir, "manifest.json")).text()) as { harnesses: string[]; artifacts: { path: string }[] };
     expect(manifest.harnesses).toEqual(["claude", "codex", "opencode", "hermes"]);
@@ -35,9 +30,9 @@ describe("generateBootstrapBundle", () => {
     const root = mkdtempSync(join(tmpdir(), "pharos-init-"));
     dirs.push(root);
     const dir = join(root, "bundle");
-    await generateBootstrapBundle(["--harness=claude", `--output=${dir}`]);
+    expect(await generateBootstrapBundle(["--harness=claude", `--output=${dir}`])).toBe(0);
     expect(existsSync(join(dir, "claude", "settings.pharos.json"))).toBeTrue();
-    await generateBootstrapBundle(["--harness=codex", `--output=${dir}`]);
+    expect(await generateBootstrapBundle(["--harness=codex", `--output=${dir}`])).toBe(1);
     expect(existsSync(join(dir, "codex", "hooks.json"))).toBeFalse();
   });
 });

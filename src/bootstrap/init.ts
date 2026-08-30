@@ -88,18 +88,21 @@ function parseArgs(args: string[]): { harnesses: BootstrapHarness[]; output: str
 
 /** Emits ready-to-copy harness integration artifacts without ever touching a
  * harness-owned config file. This makes it safe for Nix/home-manager users
- * and gives every generated script an auditable source. */
-export async function generateBootstrapBundle(args: string[]): Promise<void> {
+ * and gives every generated script an auditable source.
+ *
+ * Returns the process exit code rather than setting `process.exitCode`
+ * itself: this runs in-process inside tests too, and a global process
+ * mutation there would outlive the test that triggered it. Only the real
+ * CLI entrypoint (src/index.ts) touches `process.exitCode`. */
+export async function generateBootstrapBundle(args: string[]): Promise<number> {
   const parsed = parseArgs(args);
   if (!parsed) {
     console.error("Usage: pharos init --harness <claude|codex|opencode|hermes|all> --output <directory> [--force]");
-    process.exitCode = 2;
-    return;
+    return 2;
   }
   if (existsSync(parsed.output) && !parsed.force) {
     console.error(`pharos: ${parsed.output} already exists; use --force to write generated artifacts there.`);
-    process.exitCode = 1;
-    return;
+    return 1;
   }
   const artifacts = parsed.harnesses.flatMap(artifactsFor);
   for (const artifact of artifacts) {
@@ -114,4 +117,5 @@ export async function generateBootstrapBundle(args: string[]): Promise<void> {
     next: "Run `pharos tmux init` from a tmux pane after installing the desired artifact.",
   }, null, 2)}\n`);
   console.log(`pharos: wrote ${artifacts.length} artifact(s) to ${parsed.output}`);
+  return 0;
 }

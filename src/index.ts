@@ -59,9 +59,11 @@ switch (command) {
   case "list":
     await runList(rest, await loadConfigWithToolOverride());
     break;
-  case "init":
-    await generateBootstrapBundle(rest);
+  case "init": {
+    const code = await generateBootstrapBundle(rest);
+    if (code) process.exitCode = code;
     break;
+  }
   case "statusline": {
     const [sub] = rest;
     if (sub === "scrape") await scrapeStatusLine();
