@@ -3,7 +3,7 @@ import { enrichSession } from "@render/compute";
 import type { MiningState, Session } from "@session";
 
 const session: Session = {
-  model: "?", effort: "", thinking: false, fast: false, pct: 0, ctxSize: 200000,
+  model: "?", effort: "", thinking: false, fast: false, pct: null, ctxSize: 200000,
   cost: 0, added: 0, removed: 0, rl5: null, rl5Reset: null, rl7: null, rl7Reset: null,
   transcript: "", sessionId: "test",
 };
@@ -36,5 +36,10 @@ describe("enrichSession", () => {
   test("treats a mined zero-delta session as unmined, not as a real zero", () => {
     const result = enrichSession({ ...session, added: 5, removed: 2 }, { ...mined, linesAdded: 0, linesRemoved: 0 });
     expect(result).toMatchObject({ added: 5, removed: 2 });
+  });
+
+  test("leaves pct null rather than guessing when nothing is derivable", () => {
+    const result = enrichSession(session, { ...mined, ctxSamples: [] });
+    expect(result.pct).toBeNull();
   });
 });

@@ -105,7 +105,7 @@ const tokensMetric: Metric<TokensValue> = {
 };
 
 interface ContextValue {
-  pct: number;
+  pct: number | null;
   ctxSize: number;
   samples: number[];
 }
@@ -141,6 +141,13 @@ const contextMetric: Metric<ContextValue> = {
   compute: (ctx) => ({ pct: ctx.session.pct, ctxSize: ctx.session.ctxSize, samples: ctx.mined.ctxSamples }),
   render: (value, ctx) => {
     const s = ctx.style.settings("context", CONTEXT_DEFAULTS);
+    // No hook has reported usage and nothing's been mined yet — an em dash
+    // stands in rather than a misleading "0%" (same spirit as "?" standing
+    // in for an unknown model). Samples wouldn't exist yet either: a mined
+    // sample is what turns pct non-null in the first place.
+    if (value.pct === null) {
+      return `${ctx.style.color(s.sizeColor)}— of ${ctx.style.humanize(value.ctxSize)}`;
+    }
     const sparkline = ctx.style.sparkline(value.samples, s.sparklineWindow);
     const trend = ctx.style.trend(value.samples, s.trendSlopeThreshold);
     const trendColor = ctx.style.color(
@@ -292,6 +299,11 @@ const toolsMetric: Metric<Partial<Record<ToolCategory, number>>> = {
   styleDefaults: TOOLS_DEFAULTS,
   compute: (ctx) => bucketToolCounts(ctx.mined.toolCounts, ctx.bucketFor),
   render: (bucket, ctx) => {
+    // Nothing mined at all yet, not just a quiet category: same "blank
+    // rather than a wall of zeros" rule diff/cost/tokens already use, and
+    // for the same reason — padField still reserves the column, so nothing
+    // shifts once real counts start arriving.
+    if (Object.values(bucket).every((count) => !count)) return "";
     const s = ctx.style.settings("tools", TOOLS_DEFAULTS);
     const label = ctx.style.color(s.labelColor);
     const count = ctx.style.color(s.countColor);

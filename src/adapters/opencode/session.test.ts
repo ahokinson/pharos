@@ -55,7 +55,7 @@ describe("parseSession (opencode DB)", () => {
   test("applies defaults when nothing resolves", () => {
     const session = parseSession({});
     expect(session.model).toBe("?");
-    expect(session.pct).toBe(0);
+    expect(session.pct).toBeNull();
     expect(session.ctxSize).toBe(200000);
     expect(session.sessionId).toBe("nosession");
     expect(session.cost).toBe(0);
@@ -99,7 +99,7 @@ describe("parseSession (opencode DB)", () => {
     const session = parseSession({ session_id: SID });
     expect(session.model).toBe("glm-5.3");
     expect(session.effort).toBe("high");
-    expect(session.pct).toBe(0);
+    expect(session.pct).toBeNull();
   });
 
   test("folds child session aggregates into cost only", () => {

@@ -16,7 +16,7 @@ export function parseSession(raw: unknown): Session {
   const sessionId = input.session_id || NO_SESSION_ID;
   const fallback: Session = {
     model: input.extra?.model ?? "?", effort: input.extra?.reasoning_effort ?? "", thinking: false, fast: false,
-    pct: 0, ctxSize: DEFAULT_CTX_SIZE, cost: 0, added: 0, removed: 0,
+    pct: null, ctxSize: DEFAULT_CTX_SIZE, cost: 0, added: 0, removed: 0,
     rl5: null, rl5Reset: null, rl7: null, rl7Reset: null, transcript: sessionId, sessionId,
   };
   const db = openDb();

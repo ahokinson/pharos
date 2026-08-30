@@ -71,6 +71,12 @@ describe("context", () => {
     const text = stripAnsi(metricText("context", c) ?? "");
     expect(text).toContain("rising");
   });
+
+  test("shows a placeholder instead of a misleading 0% when pct is unknown", () => {
+    const c = makeCtx({ session: { pct: null, ctxSize: 200000 } });
+    const text = stripAnsi(metricText("context", c) ?? "");
+    expect(text).toBe("— of 200k");
+  });
 });
 
 describe("model", () => {
@@ -122,6 +128,11 @@ describe("tools", () => {
     });
     const c = makeCtx({ mined: { toolCounts: { Bash: 1 } }, config });
     expect(stripAnsi(metricText("tools", c) ?? "")).toBe("R 1");
+  });
+
+  test("hides the whole row rather than a wall of zeros before anything has run", () => {
+    const c = makeCtx();
+    expect(metricText("tools", c)).toBe("");
   });
 });
 

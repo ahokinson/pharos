@@ -50,7 +50,10 @@ export function parseSession(raw: unknown): Session {
     effort: input.effort?.level ?? "",
     thinking: input.thinking?.enabled ?? false,
     fast: input.fast_mode ?? false,
-    pct: Math.floor(input.context_window?.used_percentage ?? 0),
+    pct:
+      typeof input.context_window?.used_percentage === "number"
+        ? Math.floor(input.context_window.used_percentage)
+        : null,
     ctxSize: input.context_window?.context_window_size ?? DEFAULT_CTX_SIZE,
     cost: input.cost?.total_cost_usd ?? 0,
     added: input.cost?.total_lines_added ?? 0,

@@ -15,7 +15,10 @@ export interface Session {
   effort: string;
   thinking: boolean;
   fast: boolean;
-  pct: number;
+  /** Context-window usage percent, or null when nothing has reported one
+   * yet — never overload 0 onto "unknown," the same distinction rl5/rl7
+   * already draw for rate limits. */
+  pct: number | null;
   ctxSize: number;
   cost: number;
   added: number;

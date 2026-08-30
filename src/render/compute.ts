@@ -51,7 +51,7 @@ export interface RowBudgets {
 export function enrichSession(session: Session, mined: Awaited<ReturnType<typeof loadMiningState>>): Session {
   const latestContext = mined.ctxSamples.at(-1);
   const ctxSize = session.ctxSize === DEFAULT_CTX_SIZE ? mined.contextWindow ?? session.ctxSize : session.ctxSize;
-  const canDeriveContext = session.pct === 0 && typeof latestContext === "number" && ctxSize > 0;
+  const canDeriveContext = session.pct === null && typeof latestContext === "number" && ctxSize > 0;
   // The session line delta is whatever the transcript's edit calls actually
   // produced; only a host-reported total (Claude's cost.total_lines_*) is
   // trusted when the session's edits were unrecoverable — never the other

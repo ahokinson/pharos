@@ -34,7 +34,7 @@ export function parseSession(raw: unknown): Session {
     effort: input.effort ?? "",
     thinking: input.thinking ?? false,
     fast: input.fast ?? false,
-    pct: 0,
+    pct: null,
     ctxSize: DEFAULT_CTX_SIZE,
     cost: 0,
     added: 0,
