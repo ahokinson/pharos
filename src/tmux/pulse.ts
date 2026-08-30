@@ -6,6 +6,9 @@ import type { AnimatedState } from "@tmux/states";
 
 const SIDE_TRACK_WIDTH = 22;
 const SIDE_PULSE_CYCLE = 36;
+const SIDE_SWEEP_FRAMES = 26;
+const SIDE_HEAD_SIGMA = 1.6;
+const SIDE_TAIL_FALLOFF = 0.3;
 
 export interface ActivePane {
   id: string;
@@ -32,17 +35,41 @@ function activePanes(sessionId: string): ActivePane[] {
   return result.ok ? activePanesFrom(result.stdout) : [];
 }
 
-/** A pane-sized lighthouse flash: the center blooms, leaves a short colored
- * halo, then fades to darkness for the turning interval. Unlike the status
- * track, it never becomes a solid horizontal meter. */
-function sidePulseFrame(width: number, frameCount: number, tail: string[]): string {
+export interface SweepState {
+  /** The beam head's fractional column along the track this frame. */
+  head: number;
+  /** Pass brightness, 0 at both edges of the sweep and 1 at mid-pass. */
+  strength: number;
+}
+
+/** Where the lighthouse beam is at `frameCount`: the head's position on the
+ * track plus the pass brightness, or null for the dark rotation gap.
+ * Exported so the sweep timing stays unit-testable. */
+export function sweepState(frameCount: number, width: number): SweepState | null {
   const age = frameCount % SIDE_PULSE_CYCLE;
-  const strength = age < 5 ? 1 : age < 17 ? (17 - age) / 12 : 0;
-  const center = Math.floor(width / 2);
+  if (age >= SIDE_SWEEP_FRAMES) return null;
+  const t = age / SIDE_SWEEP_FRAMES;
+  return {
+    head: t * (width - 1),
+    strength: 0.5 - 0.5 * Math.cos(2 * Math.PI * t),
+  };
+}
+
+/** The rotating lighthouse beam as the sidecard shows it: a bright head
+ * crosses the track with a dimming comet tail dragging behind it, then the
+ * dark rotation gap before the next pass. The raised-cosine pass envelope
+ * runs to zero at both edges, so the beam fades in and out instead of
+ * popping on and off. */
+function sidePulseFrame(width: number, frameCount: number, tail: string[]): string {
+  const sweep = sweepState(frameCount, width);
+  if (!sweep) return `${" ".repeat(width)}#[default]`;
+  const { head, strength } = sweep;
   let frame = "";
   for (let cell = 0; cell < width; cell++) {
-    const distance = Math.abs(cell - center);
-    const brightness = strength - distance * 0.18;
+    const behind = head - cell;
+    const brightness = behind < 0
+      ? strength * Math.exp(-(behind * behind) / (2 * SIDE_HEAD_SIGMA * SIDE_HEAD_SIGMA))
+      : strength * Math.exp(-behind * SIDE_TAIL_FALLOFF);
     if (brightness <= 0) {
       frame += " ";
       continue;

@@ -75,12 +75,6 @@ export interface Config {
   pulse: {
     tail: number;
     stepMs: number;
-    sweep: number;
-    gapFraction: number;
-    statusLeft: number;
-    leadSpace: number;
-    margin: number;
-    remeasureEvery: number;
     /** tmux user-option names to read live theme colors from. */
     themeVars: Record<ThemeColorKey, string>;
     /** Hex fallbacks used when a theme var isn't set. */

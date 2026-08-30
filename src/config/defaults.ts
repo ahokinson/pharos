@@ -49,12 +49,6 @@ export function defaultConfig(): Config {
     pulse: {
       tail: 200,
       stepMs: 33,
-      sweep: 28,
-      gapFraction: 0.33,
-      statusLeft: 1,
-      leadSpace: 1,
-      margin: 2,
-      remeasureEvery: 30,
       themeVars: { think: "@thm_blue", tool: "@thm_lavender", ask: "@thm_yellow", background: "@thm_mantle" },
       fallbackColors: { think: "#8caaee", tool: "#babbf1", ask: "#e5c890", background: "#292c3c" },
     },
