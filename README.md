@@ -5,8 +5,8 @@
 Renders an AI coding agent's live session state in tmux's status bar: a
 pulsing light sweep while the agent is active, and statusline fields —
 cost, tokens, context burn-down, tool calls — refreshed by the host's own
-hook events. Works with Claude Code, Codex, and
-[opencode](https://opencode.ai).
+hook events. Works with Claude Code, Codex,
+[opencode](https://opencode.ai), and Hermes Agent.
 
 ## Philosophy
 
@@ -32,13 +32,26 @@ specific tag). Prebuilt binaries cover macOS and Linux, arm64 and x64; see
 [Releases](https://github.com/ahokinson/pharos/releases). To build from
 source instead, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Check `pharos --version` after installing, then run `pharos tmux init`
-from inside a tmux session to wire the status bar. It keeps your normal
-tab line, adds up to two lighthouse lanes, and shows field rows only when
-the selected pane has emitted AI hooks. Wiring the host's hooks to
-`pharos tmux render`/`pharos tmux dispatch` is still manual (see
-[Design](#design) below); an automated `pharos init` covering both sides
-is on the roadmap.
+Check `pharos --version` after installing, then generate the integration
+artifacts for the harnesses you use:
+
+```sh
+pharos init --harness all --output ./pharos-init
+```
+
+The command never edits a harness configuration. It writes a small,
+auditable bundle containing a Claude settings fragment, Codex `hooks.json`,
+an OpenCode bridge, and a Hermes shell hook/config fragment, plus a manifest
+with the exact target location and follow-up for each file. This makes it
+safe for declarative configuration managers as well as manual installs.
+Use `--harness claude` (or `codex`, `opencode`, `hermes`) to generate one
+integration; output directories must not already exist unless `--force` is
+given. Codex hook files must be reviewed with `/hooks`; Hermes shell hooks
+must be approved and checked with `hermes hooks doctor`.
+
+After deploying an artifact, run `pharos tmux init` from inside a tmux
+session. It keeps your normal tab line, adds up to two lighthouse lanes, and
+shows field rows only when the selected pane has emitted AI hooks.
 
 ## Design
 
@@ -100,6 +113,17 @@ the field rows on tmux's two pharos lines. A `task`-spawned subagent
 session folds into the same totals as the main conversation, and opencode's
 plan mode lights up the (opt-in) `permission` field the same way Claude
 Code's does.
+
+## Rendering for Hermes
+
+Hermes has shell hooks that run for both CLI and gateway sessions. The
+generated `hermes/pharos` bridge maps its lifecycle events to Pharos's pulse
+and renders after session and tool updates. The Hermes adapter reads
+`${PHAROS_HERMES_DB:-~/.hermes/state.db}` on each render, using the observed
+`sessions`, `messages`, and `session_model_usage` data to show model, token,
+tool, error, cost, Git, and delegated-child totals. This is deliberately
+best-effort: Hermes owns and migrates that database schema, so a missing or
+changed database results in an unenriched card rather than a broken session.
 
 ## Known gaps
 

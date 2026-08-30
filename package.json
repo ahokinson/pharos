@@ -1,7 +1,7 @@
 {
   "name": "pharos",
-  "version": "0.1.3",
-  "description": "Renders Claude Code's live session state as statusline fields and a tmux pulse.",
+  "version": "0.2.0",
+  "description": "Renders AI coding agents' live session state as statusline fields and a tmux pulse.",
   "license": "MIT",
   "repository": "github.com/ahokinson/pharos",
   "author": "anders@kingsfoil.dev",

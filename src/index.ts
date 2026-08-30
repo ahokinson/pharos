@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { parseAdapterName } from "@adapters/registry";
+import { generateBootstrapBundle } from "@bootstrap/init";
 import { loadConfig } from "@config";
 import { runList } from "@metrics";
 import { dispatch } from "@tmux/dispatch";
@@ -11,7 +12,7 @@ import pkg from "../package.json" with { type: "json" };
 
 function usage(): never {
   console.error(
-    "Usage: pharos [--tool=<id>] tmux init | pharos tmux render | pharos tmux pane <template> <source-pane> | pharos tmux dispatch <state> | pharos tmux pulse <session> <token> | pharos list [--json] | pharos --version",
+    "Usage: pharos init --harness <claude|codex|opencode|hermes|all> --output <directory> [--force] | pharos [--tool=<id>] tmux init | pharos tmux render | pharos tmux pane <template> <source-pane> | pharos tmux dispatch <state> | pharos tmux pulse <session> <token> | pharos list [--json] | pharos --version",
   );
   process.exit(2);
 }
@@ -56,6 +57,9 @@ switch (command) {
     process.exit(1);
   case "list":
     await runList(rest, await loadConfigWithToolOverride());
+    break;
+  case "init":
+    await generateBootstrapBundle(rest);
     break;
   case "tmux": {
     const [sub, ...tmuxArgs] = rest;

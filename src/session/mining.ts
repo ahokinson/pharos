@@ -36,6 +36,8 @@ export interface MiningState {
   repository?: string | null;
   gitHost?: string | null;
   cwd?: string | null;
+  /** Aggregated database-backed cost when the host exposes it outside hooks. */
+  cost?: number | null;
 }
 
 function emptyMiningState(): MiningState {
@@ -61,6 +63,7 @@ function emptyMiningState(): MiningState {
     repository: null,
     gitHost: null,
     cwd: null,
+    cost: null,
   };
 }
 
@@ -88,6 +91,7 @@ const miningStateSchema = z.object({
   repository: z.string().nullable().catch(null),
   gitHost: z.string().nullable().catch(null),
   cwd: z.string().nullable().catch(null),
+  cost: z.number().nullable().catch(null),
 });
 
 export async function loadMiningState(sessionId: string): Promise<MiningState> {

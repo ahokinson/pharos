@@ -16,6 +16,7 @@
     "paths": {
       "@adapters": ["src/adapters"],
       "@adapters/*": ["src/adapters/*"],
+      "@bootstrap/*": ["src/bootstrap/*"],
       "@color": ["src/color"],
       "@color/*": ["src/color/*"],
       "@config": ["src/config"],

@@ -55,6 +55,7 @@ export function enrichSession(session: Session, mined: Awaited<ReturnType<typeof
   return {
     ...session,
     model: session.model === "?" ? mined.model ?? session.model : session.model,
+    cost: session.cost === 0 ? mined.cost ?? session.cost : session.cost,
     ctxSize,
     pct: canDeriveContext ? Math.min(100, Math.floor((latestContext / ctxSize) * 100)) : session.pct,
     rl5: session.rl5 ?? mined.rl5 ?? null,

@@ -1,5 +1,6 @@
 import { claudeAdapter } from "@adapters/claude";
 import { codexAdapter } from "@adapters/codex";
+import { hermesAdapter } from "@adapters/hermes";
 import { opencodeAdapter } from "@adapters/opencode";
 import { AdapterName } from "@adapters/types";
 import type { HostAdapter } from "@adapters/types";
@@ -8,6 +9,7 @@ import type { Config } from "@config/types";
 const ADAPTERS: Partial<Record<AdapterName, HostAdapter>> = {
   [AdapterName.Claude]: claudeAdapter,
   [AdapterName.Codex]: codexAdapter,
+  [AdapterName.Hermes]: hermesAdapter,
   [AdapterName.Opencode]: opencodeAdapter,
 };
 
