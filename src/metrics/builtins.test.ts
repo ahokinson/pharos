@@ -76,7 +76,7 @@ describe("context", () => {
 describe("model", () => {
   test("compute assembles model + effort + thinking + fast modifiers", () => {
     const c = makeCtx({ session: { model: "Sonnet", effort: "high", thinking: true, fast: true } });
-    expect(BUILTIN_METRICS.model.compute(c)).toBe("Sonnet high thinking fast");
+    expect(BUILTIN_METRICS.model.compute(c)).toBe("Sonnet 󰑑 High · ⚡ Fast");
   });
 });
 
@@ -114,6 +114,14 @@ describe("tools", () => {
     const c = makeCtx({ mined: { toolCounts: { Edit: 2, Bash: 1 } }, config });
     const text = stripAnsi(metricText("tools", c) ?? "");
     expect(text).toBe("R 1 E 2");
+  });
+
+  test("hideZero omits untouched buckets for compact views", () => {
+    const config = mergeConfig({
+      metricStyle: { tools: { categoryOrder: ["runs", "edits"], glyphs: { runs: "R", edits: "E" }, hideZero: true } },
+    });
+    const c = makeCtx({ mined: { toolCounts: { Bash: 1 } }, config });
+    expect(stripAnsi(metricText("tools", c) ?? "")).toBe("R 1");
   });
 });
 

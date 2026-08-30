@@ -25,6 +25,26 @@ export type RowNumber = 1 | 2;
 
 export type ThemeColorKey = "think" | "tool" | "ask" | "background";
 
+export enum TemplateFormat {
+  Ansi = "ansi",
+  Tmux = "tmux",
+}
+
+/** The simple ANSI painter remains universally available; OpenTUI is an
+ * opt-in pane renderer that owns terminal-cell layout and resize behavior. */
+export enum TemplateRenderer {
+  Ansi = "ansi",
+  OpenTui = "opentui",
+}
+
+/** A named, multi-line Mustache view. Field values are pre-formatted for
+ * the selected target, so templates should use triple braces for fields. */
+export interface Template {
+  format: TemplateFormat;
+  renderer?: TemplateRenderer;
+  lines: string[];
+}
+
 export interface FieldSetting {
   row: RowNumber;
   /** Lowest-priority droppable field on a row goes first when it's too
@@ -46,6 +66,8 @@ export interface Config {
    * metric can declare its own shape here too; see StyleKit.settings in
    * src/metrics/types, which is how a metric reads its own bag back. */
   metricStyle: Record<string, Record<string, unknown>>;
+  /** Named output views. `fieldOrder` remains the legacy status layout. */
+  templates: Record<string, Template>;
   /** How many recent context-window samples mineTranscript retains. A
    * data-pipeline bound, not a style choice, so it lives here rather than
    * in metricStyle.context. */
@@ -81,6 +103,7 @@ export interface RawConfig {
   fieldSettings?: Record<string, Partial<FieldSetting>>;
   widths?: Record<string, number>;
   metricStyle?: Record<string, Record<string, unknown>>;
+  templates?: Record<string, Partial<Template>>;
   context?: Partial<Config["context"]>;
   pulse?: Partial<Omit<Config["pulse"], "themeVars" | "fallbackColors">> & {
     themeVars?: Partial<Config["pulse"]["themeVars"]>;

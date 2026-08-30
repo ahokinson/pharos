@@ -10,15 +10,16 @@ import type { Session } from "@session/session";
 // SessionStart payload before relying on this.
 //
 // The payload is whatever JSON a Codex hook passes on stdin — cost/lines-
-// added/removed and rate-limit fields don't exist at this layer for Codex
-// (rate limits do appear in the transcript's own token_count events — see
-// mining.ts — but MiningState has no field for them yet; a future
-// extension, not solved here).
+// added/removed and rate-limit fields don't exist at this layer for Codex;
+// the latter are backfilled from token_count transcript events by mining.ts.
 export const sessionInputSchema = z.looseObject({
   session_id: z.string().optional(),
   transcript_path: z.string().optional(),
   cwd: z.string().optional(),
   model: z.string().optional(),
+  effort: z.string().optional(),
+  thinking: z.boolean().optional(),
+  fast: z.boolean().optional(),
   permission_mode: z.string().optional(),
 });
 
@@ -30,9 +31,9 @@ export function parseSession(raw: unknown): Session {
   const input = parsed.success ? parsed.data : {};
   return {
     model: input.model ?? "?",
-    effort: "",
-    thinking: false,
-    fast: false,
+    effort: input.effort ?? "",
+    thinking: input.thinking ?? false,
+    fast: input.fast ?? false,
     pct: 0,
     ctxSize: DEFAULT_CTX_SIZE,
     cost: 0,

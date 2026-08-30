@@ -6,7 +6,7 @@ import { mineTranscript } from "@adapters/claude/mining";
 import type { MiningState } from "@session/mining";
 
 function emptyState(): MiningState {
-  return { minedLines: 0, subagentLines: {}, tokensIn: 0, tokensOut: 0, toolCounts: {}, toolErrors: 0, ctxSamples: [], permissionMode: null };
+  return { minedLines: 0, subagentLines: {}, tokensIn: 0, tokensOut: 0, toolCounts: {}, toolErrors: 0, ctxSamples: [], permissionMode: null, model: null, contextWindow: null };
 }
 
 describe("mineTranscript (filesystem-backed)", () => {
@@ -45,6 +45,12 @@ describe("mineTranscript (filesystem-backed)", () => {
     expect(state2.tokensOut).toBe(30);
     expect(state2.toolCounts).toEqual({ Read: 1, Bash: 1 });
     expect(state2.minedLines).toBe(2);
+  });
+
+  test("uses a real assistant model as a hook-payload fallback", async () => {
+    const transcript = join(dir, "transcript.jsonl");
+    writeFileSync(transcript, `${JSON.stringify({ type: "assistant", message: { model: "claude-opus-5", usage: {} } })}\n`);
+    expect((await mineTranscript(transcript, emptyState())).model).toBe("claude-opus-5");
   });
 
   test("ignores an unterminated trailing line", async () => {

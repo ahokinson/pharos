@@ -1,5 +1,6 @@
 import type { PaletteKey } from "@color";
 import type { FieldName } from "@config";
+import { thinkingCapability } from "@session/capabilities";
 import { bucketToolCounts, ToolCategory } from "@tools";
 import type { Metric, MetricContext, RampStep } from "@metrics/types";
 
@@ -25,6 +26,7 @@ const diffMetric: Metric<DiffValue> = {
   styleDefaults: DIFF_DEFAULTS,
   compute: (ctx) => ({ added: ctx.session.added, removed: ctx.session.removed }),
   render: (value, ctx) => {
+    if (value.added === 0 && value.removed === 0) return "";
     const s = ctx.style.settings("diff", DIFF_DEFAULTS);
     const addFg = ctx.style.color(value.added > 0 ? s.addColor : s.neutralColor);
     const remFg = ctx.style.color(value.removed > 0 ? s.removeColor : s.neutralColor);
@@ -177,9 +179,8 @@ const modelMetric: Metric<string> = {
   styleDefaults: MODEL_DEFAULTS,
   compute: (ctx) => {
     let text = ctx.session.model;
-    if (ctx.session.effort) text += ` ${ctx.session.effort}`;
-    if (ctx.session.thinking) text += " thinking";
-    if (ctx.session.fast) text += " fast";
+    const capability = thinkingCapability(ctx.session);
+    if (capability) text += ` ${capability}`;
     return text;
   },
   render: (text, ctx) => {
@@ -251,6 +252,8 @@ type ToolsStyle = {
   glyphs: Record<ToolCategory, string>;
   labelColor: PaletteKey;
   countColor: PaletteKey;
+  /** Keep a dense dashboard from spending cells on untouched buckets. */
+  hideZero: boolean;
 };
 
 // Which raw tool name maps to which bucket is fixed in code (src/tools,
@@ -275,6 +278,7 @@ const TOOLS_DEFAULTS: ToolsStyle = {
     web: "", // fa-globe
     other: "", // fa-puzzle-piece
   },
+  hideZero: false,
   labelColor: "text",
   countColor: "subtext0",
 };
@@ -291,7 +295,10 @@ const toolsMetric: Metric<Partial<Record<ToolCategory, number>>> = {
     const s = ctx.style.settings("tools", TOOLS_DEFAULTS);
     const label = ctx.style.color(s.labelColor);
     const count = ctx.style.color(s.countColor);
-    return s.categoryOrder.map((category) => `${label}${s.glyphs[category] ?? "?"} ${count}${bucket[category] ?? 0}`).join(" ");
+    return s.categoryOrder
+      .filter((category) => !s.hideZero || (bucket[category] ?? 0) > 0)
+      .map((category) => `${label}${s.glyphs[category] ?? "?"} ${count}${bucket[category] ?? 0}`)
+      .join(" ");
   },
 };
 

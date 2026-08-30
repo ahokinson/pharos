@@ -10,7 +10,7 @@ import type { MiningState } from "@session/mining";
 // rollout-*.jsonl files (Codex CLI 0.147.0) — not fabricated from docs.
 
 function emptyState(): MiningState {
-  return { minedLines: 0, subagentLines: {}, tokensIn: 0, tokensOut: 0, toolCounts: {}, toolErrors: 0, ctxSamples: [], permissionMode: null };
+  return { minedLines: 0, subagentLines: {}, tokensIn: 0, tokensOut: 0, toolCounts: {}, toolErrors: 0, ctxSamples: [], permissionMode: null, model: null, contextWindow: null, rl5: null, rl5Reset: null, rl7: null, rl7Reset: null };
 }
 
 describe("mineTranscript (Codex rollout envelope)", () => {
@@ -56,6 +56,54 @@ describe("mineTranscript (Codex rollout envelope)", () => {
 
     const state = await mineTranscript(transcript, emptyState());
     expect(state.toolCounts).toEqual({ exec: 2, wait: 1 });
+  });
+
+  test("keeps model and context-window metadata from the latest transcript events", async () => {
+    const transcript = join(dir, "rollout.jsonl");
+    const turn = JSON.stringify({ type: "turn_context", payload: { model: "gpt-5.6-terra" } });
+    const usage = JSON.stringify({
+      type: "event_msg",
+      payload: { type: "token_count", info: { model_context_window: 258400, last_token_usage: { input_tokens: 64500 } } },
+    });
+    writeFileSync(transcript, `${turn}\n${usage}\n`);
+
+    const state = await mineTranscript(transcript, emptyState());
+    expect(state.model).toBe("gpt-5.6-terra");
+    expect(state.contextWindow).toBe(258400);
+    expect(state.ctxSamples).toEqual([64500]);
+  });
+
+  test("keeps the latest primary and secondary usage limits", async () => {
+    const transcript = join(dir, "rollout.jsonl");
+    const usage = JSON.stringify({
+      type: "event_msg",
+      payload: {
+        type: "token_count",
+        rate_limits: {
+          primary: { used_percent: 37, resets_at: 1700000000 },
+          secondary: { used_percent: 6, resets_at: 1700100000 },
+        },
+      },
+    });
+    writeFileSync(transcript, `${usage}\n`);
+
+    const state = await mineTranscript(transcript, emptyState());
+    expect(state.rl5).toBe(37);
+    expect(state.rl5Reset).toBe(1700000000);
+    expect(state.rl7).toBe(6);
+    expect(state.rl7Reset).toBe(1700100000);
+  });
+
+  test("keeps the current plan and approval policy from their native events", async () => {
+    const transcript = join(dir, "rollout.jsonl");
+    writeFileSync(
+      transcript,
+      `${JSON.stringify({ type: "event_msg", payload: { type: "token_count", rate_limits: { plan_type: "plus" } } })}\n` +
+        `${JSON.stringify({ type: "event_msg", payload: { type: "thread_settings_applied", thread_settings: { approval_policy: "on-request" } } })}\n`,
+    );
+    const state = await mineTranscript(transcript, emptyState());
+    expect(state.planType).toBe("plus");
+    expect(state.approvalPolicy).toBe("on-request");
   });
 
   test("ignores response_item/event_msg sub-types it doesn't recognize", async () => {

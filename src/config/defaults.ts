@@ -44,6 +44,7 @@ export function defaultConfig(): Config {
     // defaults over whatever (possibly partial) override lives here, at
     // read time, so config itself doesn't need to know any metric's shape.
     metricStyle: {},
+    templates: {},
     context: { sampleCap: DEFAULT_SAMPLE_CAP },
     pulse: {
       tail: 200,

@@ -14,12 +14,15 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/mustache": "^4.2.6"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
+    "@opentui/core": "^0.5.9",
+    "mustache": "^4.2.0",
     "zod": "^4.4.3"
   }
 }

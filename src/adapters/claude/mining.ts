@@ -38,6 +38,7 @@ const transcriptLineSchema = z.looseObject({
   message: z
     .looseObject({
       usage: usageSchema.optional(),
+      model: z.string().optional(),
       content: z.array(contentItemSchema).optional(),
     })
     .optional(),
@@ -50,6 +51,7 @@ interface Totals {
   tokensOut: number;
   toolCounts: Record<string, number>;
   toolErrors: number;
+  model: string | null;
 }
 
 /** Folds one parsed line into `totals`; `ctxSamples`, when given, gets each
@@ -63,6 +65,9 @@ function mineLine(msg: TranscriptLine, totals: Totals, ctxSamples: number[] | nu
       totals.tokensIn += total;
       totals.tokensOut += usage.output_tokens ?? 0;
       ctxSamples?.push(total);
+    }
+    if (typeof msg.message?.model === "string" && msg.message.model !== "<synthetic>") {
+      totals.model = msg.message.model;
     }
     for (const item of msg.message?.content ?? []) {
       if (item.type === "tool_use" && typeof item.name === "string") {
@@ -88,6 +93,7 @@ export async function mineTranscript(transcriptPath: string, state: MiningState,
     tokensOut: state.tokensOut,
     toolCounts: { ...state.toolCounts },
     toolErrors: state.toolErrors,
+    model: state.model ?? null,
   };
   const ctxSamples = [...state.ctxSamples];
   let minedLines = state.minedLines;
@@ -137,5 +143,7 @@ export async function mineTranscript(transcriptPath: string, state: MiningState,
     toolErrors: totals.toolErrors,
     ctxSamples: capSamples(ctxSamples, sampleCap),
     permissionMode,
+    model: totals.model,
+    contextWindow: state.contextWindow,
   };
 }

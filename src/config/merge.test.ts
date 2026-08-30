@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_HEX } from "@color";
 import { mergeConfig } from "@config/merge";
+import { TemplateFormat, TemplateRenderer } from "@config/types";
 
 describe("mergeConfig", () => {
   test("with no overrides, matches the documented defaults", () => {
@@ -89,5 +90,19 @@ describe("mergeConfig", () => {
     const config = mergeConfig({ plugins: ["$PHAROS_TEST_VAR/foo.ts", "/absolute/bar.ts"] });
     expect(config.plugins).toEqual(["/custom/plugins/foo.ts", "/absolute/bar.ts"]);
     delete process.env.PHAROS_TEST_VAR;
+  });
+
+  test("templates keep only complete line-based views and default their target to ansi", () => {
+    const config = mergeConfig({
+      templates: {
+        sidecard: { lines: ["{{{tokens}}}"] },
+        tmux: { format: TemplateFormat.Tmux, lines: ["{{{cost}}}"] },
+        ignored: { format: TemplateFormat.Ansi },
+      },
+    });
+    expect(config.templates).toEqual({
+      sidecard: { format: TemplateFormat.Ansi, renderer: TemplateRenderer.Ansi, lines: ["{{{tokens}}}"] },
+      tmux: { format: TemplateFormat.Tmux, renderer: TemplateRenderer.Ansi, lines: ["{{{cost}}}"] },
+    });
   });
 });

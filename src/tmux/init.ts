@@ -29,10 +29,7 @@ export function statusRightFor(multiline: boolean, current: string): string {
   const cleaned = current
     .replace(/#\{@(?:claude_(?:frame|pulse)|pharos_(?:status|row[12]|frame[12]))\}/g, "")
     .trim();
-  const parts: string[] = cleaned ? [cleaned] : [];
-  if (!multiline) parts.unshift("#{?@pharos_ai,#{@pharos_status},}");
-  parts.push(beamFormatFor(1));
-  return parts.join("");
+  return cleaned;
 }
 
 export async function initTmux(_args: string[], _config: Config): Promise<void> {
@@ -49,24 +46,15 @@ export async function initTmux(_args: string[], _config: Config): Promise<void> 
   const multiline = version !== null && supportsMultiline(version);
   const currentRight = runSync(["tmux", "show", "-gv", "status-right"]).stdout.trim();
 
-  if (multiline) {
-    // Line zero remains the user's normal tabs/status bar plus beam one.
-    // The remaining lines reserve the second beam lane and two contextual
-    // rows, allowing multiple agents without turning shell panes into a
-    // dashboard.
-    runSync(["tmux", "set", "-g", "status", "4"]);
-    runSync(["tmux", "set", "-g", "status-format[1]", beamFormatFor(2)]);
-    runSync(["tmux", "set", "-g", "status-format[2]", fieldsFormatFor(1)]);
-    runSync(["tmux", "set", "-g", "status-format[3]", fieldsFormatFor(2)]);
-  }
+  runSync(["tmux", "set", "-g", "status", "1"]);
+  runSync(["tmux", "set", "-gu", "status-format[1]"]);
+  runSync(["tmux", "set", "-gu", "status-format[2]"]);
+  runSync(["tmux", "set", "-gu", "status-format[3]"]);
   runSync(["tmux", "set", "-g", "status-right", statusRightFor(multiline, currentRight)]);
   runSync(["tmux", "refresh-client", "-S"]);
 
   if (multiline) {
-    console.log("pharos: four-line status wired — two lighthouse lanes plus contextual AI fields.");
-  } else {
-    console.log(`pharos: tmux ${version ? version.join(".") : "?"} has no multi-line status; kept one beam and contextual joined fields.`);
-  }
-  console.log("pharos: revert with: tmux set -g status 1 && tmux set -gu status-format[1] && tmux set -gu status-format[2] && tmux set -gu status-format[3]");
+    console.log("pharos: custom pane dashboard enabled; status bar left to tmux.");
+  } else console.log(`pharos: tmux ${version ? version.join(".") : "?"} status bar left to tmux; dashboard lives in the pane.`);
   console.log("pharos: next, point your host's hooks at `pharos tmux render` and `pharos tmux dispatch` — see README.");
 }

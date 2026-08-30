@@ -4,7 +4,8 @@ import { configPath } from "@config/env";
 import { mergeConfig } from "@config/merge";
 import type { Config, RawConfig } from "@config/types";
 
-export type { Config, RawConfig, FieldName, FieldSetting } from "@config/types";
+export { TemplateFormat, TemplateRenderer } from "@config/types";
+export type { Config, RawConfig, FieldName, FieldSetting, Template } from "@config/types";
 export { expandEnv, xdgStateHome, configPath } from "@config/env";
 export { mergeConfig } from "@config/merge";
 

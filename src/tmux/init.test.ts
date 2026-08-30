@@ -40,27 +40,27 @@ describe("supportsMultiline", () => {
 
 describe("statusRightFor", () => {
   test("multiline: strips stale pharos references and installs lane one", () => {
-    expect(statusRightFor(true, "#{@pharos_status}#{@claude_frame}")).toBe("#{@pharos_frame1}");
+    expect(statusRightFor(true, "#{@pharos_status}#{@claude_frame}")).toBe("");
   });
 
   test("multiline: strips row references too", () => {
-    expect(statusRightFor(true, "#{@pharos_row1}#{@claude_frame}")).toBe("#{@pharos_frame1}");
+    expect(statusRightFor(true, "#{@pharos_row1}#{@claude_frame}")).toBe("");
   });
 
   test("multiline: appends the pulse when the bar has no other pharos content", () => {
-    expect(statusRightFor(true, " ")).toBe("#{@pharos_frame1}");
+    expect(statusRightFor(true, " ")).toBe("");
   });
 
   test("multiline: keeps unrelated status-right content next to the pulse", () => {
-    expect(statusRightFor(true, "#{T:grid} #{@claude_frame}")).toBe("#{T:grid}#{@pharos_frame1}");
+    expect(statusRightFor(true, "#{T:grid} #{@claude_frame}")).toBe("#{T:grid}");
   });
 
   test("single-line fallback: adds the joined reference plus the pulse", () => {
-    expect(statusRightFor(false, "")).toBe("#{?@pharos_ai,#{@pharos_status},}#{@pharos_frame1}");
+    expect(statusRightFor(false, "")).toBe("");
   });
 
   test("single-line fallback: leaves an existing pharos reference alone", () => {
-    expect(statusRightFor(false, "#{@pharos_status}#{@claude_frame}")).toBe("#{?@pharos_ai,#{@pharos_status},}#{@pharos_frame1}");
+    expect(statusRightFor(false, "#{@pharos_status}#{@claude_frame}")).toBe("");
   });
 });
 

@@ -67,6 +67,9 @@ theme:
   row has its own status line and budgets the client width in full, so the lowest-priority field (see
   `fieldSettings`) is what surrenders space first — there's no clutter to
   trim by hand.
+- `pharos tmux pane <template> <source-pane>` — continuously repaints a
+  named ANSI template stored on `source-pane`. It is intended as the command
+  in a dedicated tmux pane; tmux layout policy remains the user's concern.
 - `pharos list` — prints every metric pharos knows about, built-in and
   plugin-loaded, with whether it's currently on. See "Discovering metrics"
   below.
@@ -122,6 +125,16 @@ keep their default.
   "palette": { "green": "#a6d189" },
   "fieldOrder": ["diff", "tools", "toolErrors", "cost", "tokens", "context", "model", "rate"],
   "fieldSettings": { "diff": { "row": 1, "priority": 10 } },
+  "templates": {
+    "sidecard": {
+      "format": "ansi",
+      "lines": [
+        "⚓ Pharos · {{tool}} · {{state}}",
+        "{{#model}}Model  {{{model}}}{{/model}}",
+        "{{#tokens}}Tokens {{{tokens}}}{{/tokens}}"
+      ]
+    }
+  },
   "widths": { "diff": 7, "tools": 15, "cost": 6, "tokens": 13 },
   "metricStyle": {
     "cost": {
@@ -153,6 +166,13 @@ keep their default.
   `permission` (see below), plus nothing from plugins until you list it.
 - `fieldSettings`: per-metric `row` (1 or 2) and `priority` (dropped first
   when a row is too narrow to fit; `priority >= 100` is never dropped).
+- `templates`: named, multi-line [Mustache](https://mustache.github.io/)
+  views. `format` is `"ansi"` for a terminal pane or `"tmux"` for tmux
+  format strings. The context supplies `tool`, `state`, and every configured
+  metric. Use `{{#tokens}}…{{/tokens}}` to omit an unavailable field and
+  `{{{tokens}}}` to preserve Pharos's colorized metric text. Existing
+  `fieldOrder`/`fieldSettings` status rendering remains unchanged when no
+  templates are configured.
 - `widths`: a fixed visible-width to pad each metric to, so a shorter or
   absent value still holds its column; `0` (the default for `context`,
   `permission`, `model`, `rate`) means no padding.

@@ -3,6 +3,8 @@ import { ansiToTmuxStyle } from "@color";
 import { commandExists, readStdinJson, runSync } from "@process";
 import { computeRows } from "@render/compute";
 import { FALLBACK_COLUMNS } from "@render/layout";
+import { renderTemplate, templateOptionName } from "@render/templates";
+import { interactionCapability } from "@session/capabilities";
 
 // Generalizes tmux/dispatch.ts + tmux/pulse.ts's delivery surface from a
 // single animated pulse token into the full rendered statusline: any host
@@ -15,8 +17,9 @@ import { FALLBACK_COLUMNS } from "@render/layout";
 // hook provides (the resolved adapter's parseSession decides what to make
 // of it). `pharos tmux init` wires the display side: two contextual field
 // lines below the lighthouse lanes. #{@pharos_status} carries both rows
-// joined, for a single-line status bar (or a hand-rolled format). Fails open throughout, same as
-// dispatch(): any error here should never break a hook.
+// joined, for a single-line status bar (or a hand-rolled format). Named
+// templates are stored alongside those legacy values so a tmux pane can
+// display a separate compact view. Fails open throughout, same as dispatch().
 export async function renderToTmux(_args: string[], config: Config): Promise<void> {
   try {
     if (!process.env.TMUX || !process.env.TMUX_PANE) return;
@@ -37,7 +40,7 @@ export async function renderToTmux(_args: string[], config: Config): Promise<voi
     const clientWidth =
       Number(runSync(["tmux", "display", "-p", "-t", sessionId, "#{client_width}"]).stdout.trim()) || FALLBACK_COLUMNS;
     const width = Math.max(20, clientWidth - 1);
-    const { row1, row2 } = await computeRows(parsed, config, { row1: width, row2: width });
+    const { row1, row2, fields, tool } = await computeRows(parsed, config, { row1: width, row2: width });
 
     // Rows belong to the pane that emitted this hook. tmux evaluates pane
     // options in the selected-pane context, so other panes stay clean while
@@ -48,6 +51,11 @@ export async function renderToTmux(_args: string[], config: Config): Promise<voi
     runSync(["tmux", "set", "-p", "-t", paneId, "@pharos_row2", ansiToTmuxStyle(row2)]);
     const text = [row1, row2].filter((row) => row.trim().length > 0).join("  ");
     runSync(["tmux", "set", "-p", "-t", paneId, "@pharos_status", ansiToTmuxStyle(text)]);
+    const state = runSync(["tmux", "show-options", "-p", "-v", "-t", paneId, "@pharos_pulse"]).stdout.trim() || "idle";
+    for (const [name, template] of Object.entries(config.templates)) {
+      const output = renderTemplate(template, { tool, state, interaction: interactionCapability(state), ...fields });
+      runSync(["tmux", "set", "-p", "-t", paneId, templateOptionName(name), output]);
+    }
 
     runSync(["tmux", "refresh-client", "-S"]);
   } catch {

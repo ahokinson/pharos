@@ -5,12 +5,13 @@ import { runList } from "@metrics";
 import { dispatch } from "@tmux/dispatch";
 import { initTmux } from "@tmux/init";
 import { pulse } from "@tmux/pulse";
+import { renderPane } from "@tmux/pane";
 import { renderToTmux } from "@tmux/render";
 import pkg from "../package.json" with { type: "json" };
 
 function usage(): never {
   console.error(
-    "Usage: pharos [--tool=<id>] tmux init | pharos tmux render | pharos tmux dispatch <state> | pharos tmux pulse <session> <token> | pharos list [--json] | pharos --version",
+    "Usage: pharos [--tool=<id>] tmux init | pharos tmux render | pharos tmux pane <template> <source-pane> | pharos tmux dispatch <state> | pharos tmux pulse <session> <token> | pharos list [--json] | pharos --version",
   );
   process.exit(2);
 }
@@ -60,6 +61,7 @@ switch (command) {
     const [sub, ...tmuxArgs] = rest;
     if (sub === "dispatch") await dispatch(tmuxArgs, await loadConfigWithToolOverride());
     else if (sub === "pulse") await pulse(tmuxArgs, await loadConfigWithToolOverride());
+    else if (sub === "pane") await renderPane(tmuxArgs, await loadConfigWithToolOverride());
     else if (sub === "render") await renderToTmux(tmuxArgs, await loadConfigWithToolOverride());
     else if (sub === "init") await initTmux(tmuxArgs, await loadConfigWithToolOverride());
     else usage();
