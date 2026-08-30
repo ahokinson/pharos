@@ -59,11 +59,9 @@ One binary, four entry points, sharing color/palette code that today is
 duplicated across two zsh scripts against the same Catppuccin Frappe
 theme:
 
-- `pharos tmux init` — wires the display side in one shot. tmux >= 3.4
-  gets `status 4`: beam lane one stays on the normal tab line, lane two
-  is on `status-format[1]`, and conditional field rows are on lines 3–4.
-  Ordinary shell panes stay quiet; older tmux keeps one beam and selected-
-  pane joined fields in `status-right`.
+- `pharos tmux init` — removes legacy Pharos status-bar formats and stale
+  beams while leaving the user's regular tmux bar intact. The sidecard is
+  now Pharos's only display surface.
 - `pharos tmux dispatch <state>` — wired as several Claude Code hooks
   (PreToolUse/PostToolUse/UserPromptSubmit/Stop/Notification/
   SessionStart/SessionEnd); flips tmux state to start or stop the pulse,
@@ -87,9 +85,8 @@ theme:
   plugin-loaded, with whether it's currently on. See "Discovering metrics"
   below.
 
-`tmux init` is reverted by hand with: `tmux set -g status 1 && tmux set -gu
-status-format[1] && tmux set -gu status-format[2] && tmux set -gu
-status-format[3]`.
+`tmux init` is safe to run again: it only clears Pharos-owned historical
+status-bar references.
 
 ## Rendering for opencode
 

@@ -67,7 +67,7 @@ switch (command) {
     else if (sub === "pulse") await pulse(tmuxArgs, await loadConfigWithToolOverride());
     else if (sub === "pane") await renderPane(tmuxArgs, await loadConfigWithToolOverride());
     else if (sub === "render") await renderToTmux(tmuxArgs, await loadConfigWithToolOverride());
-    else if (sub === "init") await initTmux(tmuxArgs, await loadConfigWithToolOverride());
+    else if (sub === "init") await initTmux(tmuxArgs);
     else usage();
     break;
   }

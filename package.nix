@@ -9,7 +9,7 @@
 # opencode package (also a bun --compile binary) uses stdenvNoCC for the
 # same reason.
 let
-  version = "0.1.2";
+  version = "0.2.1";
 
   # `bun build --compile` resolves imports from a real node_modules, so the
   # dependency tree has to exist before the build proper. Fetching it needs
@@ -40,7 +40,7 @@ let
     dontFixup = true;
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-06Rfh8h6nthalU+Myu59uhE30EvFg7dL7PNaQfaUwf0=";
+    outputHash = "sha256-z6zGwwLpro3/DjN9JlWzZTHjLcXuI3D0K6tLRsw1ecs=";
   };
 in
 stdenvNoCC.mkDerivation {
