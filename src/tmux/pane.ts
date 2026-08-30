@@ -1,6 +1,6 @@
 import { commandExists, runSync } from "@process";
 import { templateOptionName } from "@render/templates";
-import { renderOpenTuiPane } from "@tmux/opentui-pane";
+import { renderOpenTuiPane } from "@tmux/opentuiPane";
 import { TemplateRenderer } from "@config/types";
 import type { Config } from "@config/types";
 

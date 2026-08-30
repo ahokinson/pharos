@@ -1,6 +1,7 @@
 import { BoxRenderable, createCliRenderer, RGBA, StyledText, TextRenderable } from "@opentui/core";
 import type { TextChunk } from "@opentui/core";
 
+import { DEFAULT_HEX } from "@color";
 import { commandExists, runSync } from "@process";
 import { templateOptionName } from "@render/templates";
 
@@ -55,19 +56,35 @@ export async function renderOpenTuiPane(templateName: string, sourcePane: string
   const option = templateOptionName(templateName);
   let previous = "";
   let card: BoxRenderable | undefined;
-  const sectionColors = [undefined, "#e5c890", "#ca9ee6", "#99d1e9", "#81c8be"];
 
   const draw = (content: string, pulse: string) => {
     if (card) {
       renderer.root.remove(card);
       card.destroy();
     }
+    // Modeled on press's Box/Header: one rounded frame in a single muted
+    // border tone (Catppuccin surface2), not a rainbow rail or box per
+    // section — accent color belongs on focus/text, not the frame. Groups
+    // are separated by a blank backgroundChrome strip (press's Header with
+    // neither slot filled), the same device press uses for a labelless
+    // divider row, so the card reads as one panel throughout.
     card = new BoxRenderable(renderer, {
       width: "100%",
       flexDirection: "column",
       alignItems: "flex-end",
       flexShrink: 0,
-      gap: 1,
+      border: true,
+      borderStyle: "rounded",
+      borderColor: DEFAULT_HEX.surface2,
+      paddingLeft: 1,
+      paddingRight: 1,
+      paddingTop: 1,
+      paddingBottom: 1,
+    });
+    const divider = () => new BoxRenderable(renderer, {
+      width: "100%",
+      height: 1,
+      backgroundColor: DEFAULT_HEX.mantle,
     });
     // The beacon is deliberately its own, centred header rather than another
     // right-aligned data row.  At a glance the flash signals live activity;
@@ -96,47 +113,49 @@ export async function renderOpenTuiPane(templateName: string, sourcePane: string
     }));
     card.add(beacon);
 
+    // Fixed-shape sections (the template supplies a `---` filler line for
+    // any field it doesn't have data for) mean a divider's position never
+    // moves as data comes and goes.
     const sections = content.split(/\n{2,}/).filter(Boolean);
-    for (const [index, section] of sections.entries()) {
+    for (const section of sections) {
+      card.add(divider());
       const lines = section.split("\n");
-      const row = new BoxRenderable(renderer, {
-        width: "100%",
-        height: lines.length,
-        position: "relative",
-      });
-      const rows = new BoxRenderable(renderer, {
-        width: "100%",
-        flexDirection: "column",
-        height: lines.length,
-      });
-      const railColor = sectionColors[index];
+      const panel = new BoxRenderable(renderer, { width: "100%", flexDirection: "column" });
       for (const line of lines) {
+        // A tab splits a line into a label/value pair — a real two-column
+        // row instead of one opaque right-justified blob, so a filler
+        // dash reads as "this field, no data" rather than a stray mark
+        // floating with nothing to anchor it. A line with no tab (the
+        // harness/profile header) stays a single flush-right block.
+        const tab = line.indexOf("\t");
         const lineBox = new BoxRenderable(renderer, {
           width: "100%",
           height: 1,
           flexDirection: "row",
-          justifyContent: "flex-end",
-          paddingRight: railColor ? 2 : 0,
+          justifyContent: tab === -1 ? "flex-end" : "space-between",
         });
-        lineBox.add(new TextRenderable(renderer, {
-          content: ansiToStyledText(line),
-          flexShrink: 0,
-          wrapMode: "none",
-        }));
-        rows.add(lineBox);
+        if (tab === -1) {
+          lineBox.add(new TextRenderable(renderer, {
+            content: ansiToStyledText(line),
+            flexShrink: 0,
+            wrapMode: "none",
+          }));
+        } else {
+          lineBox.add(new TextRenderable(renderer, {
+            content: ansiToStyledText(line.slice(0, tab)),
+            fg: RGBA.fromHex(DEFAULT_HEX.overlay1),
+            flexShrink: 0,
+            wrapMode: "none",
+          }));
+          lineBox.add(new TextRenderable(renderer, {
+            content: ansiToStyledText(line.slice(tab + 1)),
+            flexShrink: 0,
+            wrapMode: "none",
+          }));
+        }
+        panel.add(lineBox);
       }
-      row.add(rows);
-      if (railColor) {
-        row.add(new BoxRenderable(renderer, {
-          position: "absolute",
-          right: 0,
-          top: 0,
-          width: 1,
-          height: lines.length,
-          backgroundColor: railColor,
-        }));
-      }
-      card.add(row);
+      card.add(panel);
     }
     renderer.root.add(card);
   };

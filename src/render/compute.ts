@@ -20,7 +20,10 @@ export interface ComputedRows {
   tool: string;
 }
 
-function rateCardLine(label: string, pct: number | null, reset: string | number | null, nowEpoch: number, style: ReturnType<typeof buildStyleKit>): string | null {
+// No leading "5H"/"7D" label baked into the string: a template places this
+// next to its own column label (e.g. sidecard's "5h limit"), and a status
+// bar row that wants one can still prefix it itself.
+function rateCardLine(pct: number | null, reset: string | number | null, nowEpoch: number, style: ReturnType<typeof buildStyleKit>): string | null {
   if (pct === null) return null;
   const value = Math.max(0, Math.min(100, Math.trunc(pct)));
   const cells = 8;
@@ -28,7 +31,7 @@ function rateCardLine(label: string, pct: number | null, reset: string | number 
   const color = style.lerp(value / 100, "green", "red");
   const meter = `${"▰".repeat(filled)}${style.color("surface1")}${"▱".repeat(cells - filled)}`;
   const resetText = reset === null ? "" : style.countdown(reset, nowEpoch);
-  return `${style.color("overlay1")}${label} ${color}${meter} ${value}%${style.color("overlay1")}${resetText ? ` ${resetText}` : ""}`;
+  return `${color}${meter} ${value}%${style.color("overlay1")}${resetText ? ` ${resetText}` : ""}`;
 }
 
 function prettyModelName(model: string): string {
@@ -187,8 +190,8 @@ export async function computeRows(raw: unknown, config: Config, budgets: RowBudg
       renderedFields.worktree = `${style.color("green")}● clean`;
     }
   }
-  const cardRate5 = rateCardLine("5H", session.rl5, session.rl5Reset, nowEpoch, style);
-  const cardRate7 = rateCardLine("7D", session.rl7, session.rl7Reset, nowEpoch, style);
+  const cardRate5 = rateCardLine(session.rl5, session.rl5Reset, nowEpoch, style);
+  const cardRate7 = rateCardLine(session.rl7, session.rl7Reset, nowEpoch, style);
   if (cardRate5) renderedFields.rate5 = cardRate5;
   if (cardRate7) renderedFields.rate7 = cardRate7;
   return { row1: fitRow(fields, 1, budgets.row1), row2: fitRow(fields, 2, budgets.row2), fields: renderedFields, tool: adapter.id };
