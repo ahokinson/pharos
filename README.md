@@ -77,7 +77,14 @@ theme:
   closes the pane. `#{@pharos_status}` is the joined pre-3.4 fallback. Each
   row has its own status line and budgets the client width in full, so the lowest-priority field (see
   `fieldSettings`) is what surrenders space first — there's no clutter to
-  trim by hand.
+  trim by hand. It also publishes two markers on that pane for anything
+  drawing outside it: `#{@pharos_ai}`, set for good the first time pharos
+  renders there, and `#{@pharos_pid}`, the agent process behind the pane
+  (resolved by walking up from the hook to the pane's own shell). Polling
+  that pid is how an external card knows the agent is gone even when it
+  crashed or was killed outright and no hook ever fired. It stays unset
+  when the pane's command *is* the agent, since there the pane's own
+  lifetime already says the same thing.
 - `pharos tmux pane <template> <source-pane>` — continuously repaints a
   named ANSI template stored on `source-pane`. It is intended as the command
   in a dedicated tmux pane; tmux layout policy remains the user's concern.

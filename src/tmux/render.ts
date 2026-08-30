@@ -1,6 +1,6 @@
 import type { Config } from "@config";
 import { ansiToTmuxStyle } from "@color";
-import { commandExists, readStdinJson, runSync } from "@process";
+import { commandExists, currentAgentPid, processAlive, readStdinJson, runSync } from "@process";
 import { computeRows } from "@render/compute";
 import { FALLBACK_COLUMNS } from "@render/layout";
 import { renderTemplate, templateOptionName } from "@render/templates";
@@ -25,7 +25,16 @@ export async function renderToTmux(_args: string[], config: Config): Promise<voi
     if (!process.env.TMUX || !process.env.TMUX_PANE) return;
     if (!commandExists("tmux")) return;
 
-    const sessionId = runSync(["tmux", "display", "-p", "-t", process.env.TMUX_PANE, "#{session_id}"]).stdout.trim();
+    // One expansion for everything this render needs off the hook-emitting
+    // pane: the session it belongs to, the shell tmux started it with (the
+    // anchor for resolving the agent behind this hook), the live pulse
+    // state, and whatever agent pid an earlier render already resolved.
+    // Pipe-separated on one line, the same shape activePanesFrom consumes in
+    // tmux/pulse.ts: none of these four can contain a pipe.
+    const paneId = process.env.TMUX_PANE;
+    const [sessionId = "", panePid = "", pulse = "", knownPid = ""] = runSync([
+      "tmux", "display", "-p", "-t", paneId, "#{session_id}|#{pane_pid}|#{@pharos_pulse}|#{@pharos_pid}",
+    ]).stdout.trim().split("|");
     if (!sessionId) return;
 
     const parsed = await readStdinJson();
@@ -42,16 +51,27 @@ export async function renderToTmux(_args: string[], config: Config): Promise<voi
     const width = Math.max(20, clientWidth - 1);
     const { row1, row2, fields, tool } = await computeRows(parsed, config, { row1: width, row2: width });
 
+    runSync(["tmux", "set", "-p", "-t", paneId, "@pharos_ai", "1"]);
+
+    // @pharos_ai marks the pane for good, but anything drawn outside it also
+    // needs to know when the agent itself is gone — and nothing hooks a
+    // crash or a kill -9. A pid to poll is the only signal that survives
+    // those. Resolving one costs a walk of the process table, so only pay
+    // for it once the pid we already published has died.
+    const panePidNumber = Number(panePid);
+    if (panePidNumber > 0 && (!knownPid || !processAlive(Number(knownPid)))) {
+      const agentPid = currentAgentPid(process.pid, panePidNumber);
+      if (agentPid) runSync(["tmux", "set", "-p", "-t", paneId, "@pharos_pid", String(agentPid)]);
+    }
+
     // Rows belong to the pane that emitted this hook. tmux evaluates pane
     // options in the selected-pane context, so other panes stay clean while
     // this pane retains its last useful summary after it becomes idle.
-    const paneId = process.env.TMUX_PANE;
-    runSync(["tmux", "set", "-p", "-t", paneId, "@pharos_ai", "1"]);
     runSync(["tmux", "set", "-p", "-t", paneId, "@pharos_row1", ansiToTmuxStyle(row1)]);
     runSync(["tmux", "set", "-p", "-t", paneId, "@pharos_row2", ansiToTmuxStyle(row2)]);
     const text = [row1, row2].filter((row) => row.trim().length > 0).join("  ");
     runSync(["tmux", "set", "-p", "-t", paneId, "@pharos_status", ansiToTmuxStyle(text)]);
-    const state = runSync(["tmux", "show-options", "-p", "-v", "-t", paneId, "@pharos_pulse"]).stdout.trim() || "idle";
+    const state = pulse || "idle";
     for (const [name, template] of Object.entries(config.templates)) {
       const output = renderTemplate(template, { tool, state, interaction: interactionCapability(state), ...fields });
       runSync(["tmux", "set", "-p", "-t", paneId, templateOptionName(name), output]);
