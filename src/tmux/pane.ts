@@ -58,7 +58,9 @@ export async function renderPane(args: string[], config: Config): Promise<void> 
     const next = runSync(["tmux", "show-options", "-p", "-v", "-t", sourcePane, option]).stdout;
     const pulse = runSync(["tmux", "display", "-p", "-t", sourcePane, "#{@pharos_side_frame1}"]).stdout.trimEnd();
     const paneWidth = Number(runSync(["tmux", "display", "-p", "-t", process.env.TMUX_PANE || sourcePane, "#{pane_width}"]).stdout.trim()) || 30;
-    const beacon = pulse ? `${pulse}\n⛯` : "⛯";
+    // Same reserved flash row as the OpenTUI renderer: the card must not
+    // shift up a line when the beam goes to rest at the end of a turn.
+    const beacon = `${pulse || " "}\n⛯`;
     const content = `${beacon}\n${tmuxStyleToAnsi(next.trimEnd())}`;
     const display = `${rightJustify(content, paneWidth)}\n`;
     if (display !== previous) {

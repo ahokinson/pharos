@@ -72,20 +72,23 @@ export async function renderOpenTuiPane(templateName: string, sourcePane: string
     // The beacon is deliberately its own, centred header rather than another
     // right-aligned data row.  At a glance the flash signals live activity;
     // the lighthouse glyph remains recognisable when the flash is at rest.
+    // The flash row is reserved whether or not it's lit: a beacon that
+    // changed height at rest would shove the whole card up a line every time
+    // a turn ended.
     const beacon = new BoxRenderable(renderer, {
       width: "100%",
       flexDirection: "column",
       alignItems: "center",
       gap: 0,
-      height: pulse ? 2 : 1,
+      height: 2,
     });
-    if (pulse) {
-      beacon.add(new TextRenderable(renderer, {
-        content: ansiToStyledText(pulse),
-        flexShrink: 0,
-        wrapMode: "none",
-      }));
-    }
+    beacon.add(new TextRenderable(renderer, {
+      // An empty StyledText carries no chunks and measures as nothing; a
+      // space keeps the reserved row a row.
+      content: ansiToStyledText(pulse || " "),
+      flexShrink: 0,
+      wrapMode: "none",
+    }));
     beacon.add(new TextRenderable(renderer, {
       content: ansiToStyledText("⛯"),
       flexShrink: 0,
