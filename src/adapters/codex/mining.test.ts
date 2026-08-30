@@ -10,7 +10,7 @@ import type { MiningState } from "@session/mining";
 // rollout-*.jsonl files (Codex CLI 0.147.0) — not fabricated from docs.
 
 function emptyState(): MiningState {
-  return { minedLines: 0, subagentLines: {}, tokensIn: 0, tokensOut: 0, toolCounts: {}, toolErrors: 0, ctxSamples: [], permissionMode: null, model: null, contextWindow: null, rl5: null, rl5Reset: null, rl7: null, rl7Reset: null };
+  return { minedLines: 0, subagentLines: {}, tokensIn: 0, tokensOut: 0, linesAdded: 0, linesRemoved: 0, toolCounts: {}, toolErrors: 0, ctxSamples: [], permissionMode: null, model: null, contextWindow: null, rl5: null, rl5Reset: null, rl7: null, rl7Reset: null };
 }
 
 describe("mineTranscript (Codex rollout envelope)", () => {
@@ -124,5 +124,37 @@ describe("mineTranscript (Codex rollout envelope)", () => {
 
     const state = await mineTranscript(transcript, emptyState());
     expect(state.toolErrors).toBe(0);
+  });
+
+  test("folds edit call arguments into the session diff", async () => {
+    const transcript = join(dir, "rollout.jsonl");
+    const edit = JSON.stringify({
+      type: "response_item",
+      payload: { type: "function_call", name: "Edit", arguments: JSON.stringify({ old_string: "a\nb\n", new_string: "a\nx\n" }) },
+    });
+    const write = JSON.stringify({
+      type: "response_item",
+      payload: { type: "function_call", name: "Write", args: { content: "one\ntwo\n" } },
+    });
+    const applyPatch = JSON.stringify({
+      type: "response_item",
+      payload: { type: "custom_tool_call", name: "apply_patch", arguments: "--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new\n" },
+    });
+    writeFileSync(transcript, `${edit}\n${write}\n${applyPatch}\n`);
+
+    const state = await mineTranscript(transcript, emptyState());
+    expect(state.linesAdded).toBe(4); // Edit 1 + Write 2 + apply_patch 1
+    expect(state.linesRemoved).toBe(2); // Edit 1 + apply_patch 1
+  });
+
+  test("unshapeable tool calls contribute zero to the diff", async () => {
+    const transcript = join(dir, "rollout.jsonl");
+    const edit = JSON.stringify({ type: "response_item", payload: { type: "function_call", name: "Edit", arguments: "not a shape" } });
+    const read = JSON.stringify({ type: "response_item", payload: { type: "function_call", name: "Read", arguments: "a.ts" } });
+    writeFileSync(transcript, `${edit}\n${read}\n`);
+
+    const state = await mineTranscript(transcript, emptyState());
+    expect(state.linesAdded).toBe(0);
+    expect(state.linesRemoved).toBe(0);
   });
 });

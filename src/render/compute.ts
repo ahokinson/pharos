@@ -52,12 +52,19 @@ export function enrichSession(session: Session, mined: Awaited<ReturnType<typeof
   const latestContext = mined.ctxSamples.at(-1);
   const ctxSize = session.ctxSize === DEFAULT_CTX_SIZE ? mined.contextWindow ?? session.ctxSize : session.ctxSize;
   const canDeriveContext = session.pct === 0 && typeof latestContext === "number" && ctxSize > 0;
+  // The session line delta is whatever the transcript's edit calls actually
+  // produced; only a host-reported total (Claude's cost.total_lines_*) is
+  // trusted when the session's edits were unrecoverable — never the other
+  // way around, and never a whole-worktree diff.
+  const minedAnyDiff = mined.linesAdded > 0 || mined.linesRemoved > 0;
   return {
     ...session,
     model: session.model === "?" ? mined.model ?? session.model : session.model,
     cost: session.cost === 0 ? mined.cost ?? session.cost : session.cost,
     ctxSize,
     pct: canDeriveContext ? Math.min(100, Math.floor((latestContext / ctxSize) * 100)) : session.pct,
+    added: minedAnyDiff ? mined.linesAdded : session.added,
+    removed: minedAnyDiff ? mined.linesRemoved : session.removed,
     rl5: session.rl5 ?? mined.rl5 ?? null,
     rl5Reset: session.rl5Reset ?? mined.rl5Reset ?? null,
     rl7: session.rl7 ?? mined.rl7 ?? null,

@@ -7,7 +7,7 @@
 // `prior` argument survives only as the fail-open return when the DB is
 // unreadable or the session id doesn't resolve; loadMiningState/
 // saveMiningState still round-trip the result as a debuggable checkpoint.
-import { assistantMessages, getChildSessionIds, getSessionRow, openDb, toolParts } from "@adapters/opencode/db";
+import { assistantMessages, getChildSessionIds, getSessionRow, openDb, toolParts, userMessageDiffs } from "@adapters/opencode/db";
 import type { OpencodeMessage, OpencodeToolPart } from "@adapters/opencode/db";
 import { capSamples } from "@adapters/shared";
 import { DEFAULT_SAMPLE_CAP } from "@session/mining";
@@ -78,6 +78,12 @@ export async function mineTranscript(
     const ctxSamples: number[] = [];
     const toolCounts: Record<string, number> = {};
     const errors = { count: 0 };
+    // Per-turn diffs opencode recorded on user messages. The session-level
+    // summary_* columns are zeroed since v1.16 (see README Known gaps), so
+    // these are the honest session line delta; summing turn deltas matches
+    // how opencode's own maintainers restore the sidebar aggregate.
+    let linesAdded = 0;
+    let linesRemoved = 0;
     // Row counts, informational only under rebuild semantics (nothing reads
     // them back); they make the persisted checkpoint a quick sanity read.
     let messageCount = 0;
@@ -88,6 +94,10 @@ export async function mineTranscript(
     messageCount += own.length;
     foldMessages(own, tokens, ctxSamples);
     foldToolParts(toolParts(db, ref), toolCounts, errors);
+    for (const delta of userMessageDiffs(db, ref)) {
+      linesAdded += delta.added;
+      linesRemoved += delta.removed;
+    }
 
     // Subagent children: totals fold in (their work is still this session's
     // work), but never ctxSamples — context-window fill is specifically
@@ -99,6 +109,10 @@ export async function mineTranscript(
       subagentLines[childId] = childParts.length;
       foldMessages(childMessages, tokens, null);
       foldToolParts(childParts, toolCounts, errors);
+      for (const delta of userMessageDiffs(db, childId)) {
+        linesAdded += delta.added;
+        linesRemoved += delta.removed;
+      }
     }
 
     return {
@@ -106,6 +120,8 @@ export async function mineTranscript(
       subagentLines,
       tokensIn: tokens.in,
       tokensOut: tokens.out,
+      linesAdded,
+      linesRemoved,
       toolCounts,
       toolErrors: errors.count,
       ctxSamples: capSamples(ctxSamples, sampleCap),

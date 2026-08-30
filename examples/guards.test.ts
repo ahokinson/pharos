@@ -34,6 +34,8 @@ const MINED: MiningState = {
   subagentLines: {},
   tokensIn: 0,
   tokensOut: 0,
+  linesAdded: 0,
+  linesRemoved: 0,
   toolCounts: {},
   toolErrors: 0,
   ctxSamples: [],

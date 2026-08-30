@@ -1,7 +1,7 @@
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
 
-import { capSamples, parseJsonLine, readNewLines } from "@adapters/shared";
+import { capSamples, countLineDelta, countPatchLines, parseJsonLine, readNewLines } from "@adapters/shared";
 import type { MiningState } from "@session/mining";
 import { DEFAULT_SAMPLE_CAP } from "@session/mining";
 
@@ -26,10 +26,25 @@ const usageSchema = z.looseObject({
   output_tokens: z.number().optional(),
 });
 
+// Edit tool_use inputs carry the old/new text the session actually applied,
+// which is what makes a session-scoped line delta possible (the host's
+// `cost.total_lines_*` is an opaque total that also counts non-edit changes).
+const editInputSchema = z.looseObject({
+  old_string: z.string().optional(),
+  new_string: z.string().optional(),
+  content: z.string().optional(),
+  new_source: z.string().optional(),
+  patch: z.string().optional(),
+  edits: z
+    .array(z.looseObject({ old_string: z.string().optional(), new_string: z.string().optional() }))
+    .optional(),
+});
+
 const contentItemSchema = z.looseObject({
   type: z.string().optional(),
   name: z.string().optional(),
   is_error: z.boolean().optional(),
+  input: editInputSchema.optional(),
 });
 
 const transcriptLineSchema = z.looseObject({
@@ -49,9 +64,47 @@ type TranscriptLine = z.infer<typeof transcriptLineSchema>;
 interface Totals {
   tokensIn: number;
   tokensOut: number;
+  linesAdded: number;
+  linesRemoved: number;
   toolCounts: Record<string, number>;
   toolErrors: number;
   model: string | null;
+}
+
+/** Line delta a tool_use call reports for the session, by tool vocabulary.
+ * A bare Write has no baseline, so every line of its content counts as
+ * added (overcounts overwrites; the README documents it). Unknown tools
+ * carry a null input and contribute nothing. */
+function editLineDelta(
+  toolName: string,
+  input: z.infer<typeof editInputSchema> | undefined,
+): { added: number; removed: number } | null {
+  if (!input) return null;
+  switch (toolName) {
+    case "Edit": {
+      if (typeof input.old_string !== "string" || typeof input.new_string !== "string") return null;
+      return countLineDelta(input.old_string, input.new_string);
+    }
+    case "MultiEdit": {
+      let added = 0;
+      let removed = 0;
+      for (const edit of input.edits ?? []) {
+        if (typeof edit.old_string !== "string" || typeof edit.new_string !== "string") continue;
+        const delta = countLineDelta(edit.old_string, edit.new_string);
+        added += delta.added;
+        removed += delta.removed;
+      }
+      return { added, removed };
+    }
+    case "Write":
+      return typeof input.content === "string" ? countLineDelta("", input.content) : null;
+    case "NotebookEdit":
+      return typeof input.new_source === "string" ? countLineDelta("", input.new_source) : null;
+    case "ApplyPatch":
+      return typeof input.patch === "string" ? countPatchLines(input.patch) : null;
+    default:
+      return null;
+  }
 }
 
 /** Folds one parsed line into `totals`; `ctxSamples`, when given, gets each
@@ -72,6 +125,11 @@ function mineLine(msg: TranscriptLine, totals: Totals, ctxSamples: number[] | nu
     for (const item of msg.message?.content ?? []) {
       if (item.type === "tool_use" && typeof item.name === "string") {
         totals.toolCounts[item.name] = (totals.toolCounts[item.name] ?? 0) + 1;
+        const delta = editLineDelta(item.name, item.input);
+        if (delta) {
+          totals.linesAdded += delta.added;
+          totals.linesRemoved += delta.removed;
+        }
       }
     }
   } else if (msg.type === "user") {
@@ -91,6 +149,8 @@ export async function mineTranscript(transcriptPath: string, state: MiningState,
   const totals: Totals = {
     tokensIn: state.tokensIn,
     tokensOut: state.tokensOut,
+    linesAdded: state.linesAdded,
+    linesRemoved: state.linesRemoved,
     toolCounts: { ...state.toolCounts },
     toolErrors: state.toolErrors,
     model: state.model ?? null,
@@ -139,6 +199,8 @@ export async function mineTranscript(transcriptPath: string, state: MiningState,
     subagentLines,
     tokensIn: totals.tokensIn,
     tokensOut: totals.tokensOut,
+    linesAdded: totals.linesAdded,
+    linesRemoved: totals.linesRemoved,
     toolCounts: totals.toolCounts,
     toolErrors: totals.toolErrors,
     ctxSamples: capSamples(ctxSamples, sampleCap),

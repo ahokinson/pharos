@@ -20,10 +20,10 @@ beforeEach(() => {
     id text primary key, parent_session_id text, model text, input_tokens integer, output_tokens integer,
     cache_read_tokens integer, cache_write_tokens integer, reasoning_tokens integer,
     estimated_cost_usd real, actual_cost_usd real, tool_call_count integer, cwd text, git_branch text, git_repo_root text
-  ); create table messages (session_id text, tool_name text, effect_disposition text);`);
+  ); create table messages (session_id text, tool_name text, effect_disposition text, tool_calls text);`);
   db.exec("insert into sessions values ('main', null, 'nous/hermes-4', 100, 20, 10, 5, 7, 0.2, 0.3, 2, '/repo', 'develop', '/repo')");
   db.exec("insert into sessions values ('child', 'main', 'nous/hermes-4', 50, 10, 0, 0, 0, 0.1, 0.1, 1, '/repo', 'develop', '/repo')");
-  db.exec("insert into messages values ('main', 'terminal', 'ok'), ('main', 'write_file', 'error'), ('child', 'terminal', 'ok')");
+  db.exec("insert into messages (session_id, tool_name, effect_disposition) values ('main', 'terminal', 'ok'), ('main', 'write_file', 'error'), ('child', 'terminal', 'ok')");
   db.close();
 });
 
@@ -43,5 +43,30 @@ describe("Hermes state DB adapter", () => {
   test("fails open when no session is found", async () => {
     const prior = await loadMiningState("missing-hermes");
     expect(await mineTranscript("unknown", prior, 40)).toEqual(prior);
+  });
+
+  test("folds provider-shaped tool_calls into the session diff", async () => {
+    const db = new Database(path);
+    const openai = JSON.stringify([
+      { id: "c1", type: "function", function: { name: "Edit", arguments: JSON.stringify({ old_string: "a\nb\n", new_string: "a\nx\n" }) } },
+    ]);
+    const anthropic = JSON.stringify([{ id: "c2", name: "Write", input: { content: "one\ntwo\n" } }]);
+    db.query("insert into messages (session_id, tool_name, effect_disposition, tool_calls) values (?, ?, ?, ?)").run(
+      "main",
+      "Edit",
+      "ok",
+      openai,
+    );
+    db.query("insert into messages (session_id, tool_name, effect_disposition, tool_calls) values (?, ?, ?, ?)").run(
+      "main",
+      "Write",
+      "ok",
+      anthropic,
+    );
+    db.close();
+
+    const mined = await mineTranscript("main", await loadMiningState("missing-hermes"), 40);
+    expect(mined.linesAdded).toBe(3); // Edit 1 + Write 2
+    expect(mined.linesRemoved).toBe(1); // Edit 1
   });
 });

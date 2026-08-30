@@ -61,7 +61,7 @@ describe("parseSession (opencode DB)", () => {
     expect(session.cost).toBe(0);
   });
 
-  test("enriches model, effort, context, and diff from the DB", () => {
+  test("enriches model, effort, and context from the DB", () => {
     db.query("insert into session (id, model, cost, summary_additions, summary_deletions) values (?, ?, ?, ?, ?)").run(
       SID,
       MODEL_BLOB,
@@ -86,8 +86,10 @@ describe("parseSession (opencode DB)", () => {
     expect(session.pct).toBe(25);
     expect(session.ctxSize).toBe(200000);
     expect(session.cost).toBe(1.25);
-    expect(session.added).toBe(30);
-    expect(session.removed).toBe(12);
+    // opencode stopped writing truthful summary_* columns at v1.16.0, so the
+    // session diff always reads 0 here; mining owns it now (per-message diffs).
+    expect(session.added).toBe(0);
+    expect(session.removed).toBe(0);
     expect(session.transcript).toBe(SID);
   });
 
@@ -100,7 +102,7 @@ describe("parseSession (opencode DB)", () => {
     expect(session.pct).toBe(0);
   });
 
-  test("folds child session aggregates into cost and diff", () => {
+  test("folds child session aggregates into cost only", () => {
     db.query("insert into session (id, cost, summary_additions, summary_deletions) values (?, ?, ?, ?)").run(
       SID,
       1,
@@ -117,8 +119,8 @@ describe("parseSession (opencode DB)", () => {
 
     const session = parseSession({ session_id: SID });
     expect(session.cost).toBe(1.5);
-    expect(session.added).toBe(17);
-    expect(session.removed).toBe(7);
+    expect(session.added).toBe(0);
+    expect(session.removed).toBe(0);
   });
 
   test("honors context_window_size from the payload", () => {

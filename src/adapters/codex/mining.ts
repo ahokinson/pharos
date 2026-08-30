@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { capSamples, parseJsonLine, readNewLines } from "@adapters/shared";
+import { capSamples, editToolLineDelta, parseJsonLine, readNewLines } from "@adapters/shared";
 import type { MiningState } from "@session/mining";
 import { DEFAULT_SAMPLE_CAP } from "@session/mining";
 
@@ -39,6 +39,11 @@ const envelopeSchema = z.looseObject({
       type: z.string().optional(),
       name: z.string().optional(),
       model: z.string().optional(),
+      // Tool-call arguments for the line-delta fold: string (JSON or a raw
+      // apply_patch body) or already-parsed JSON. Function calls carry
+      // `arguments`, custom calls `args`.
+      arguments: z.unknown().optional(),
+      args: z.unknown().optional(),
       info: z.looseObject({
         last_token_usage: tokenUsageSchema.optional(),
         model_context_window: z.number().optional(),
@@ -67,6 +72,8 @@ type Envelope = z.infer<typeof envelopeSchema>;
 interface Totals {
   tokensIn: number;
   tokensOut: number;
+  linesAdded: number;
+  linesRemoved: number;
   toolCounts: Record<string, number>;
   model: string | null;
   contextWindow: number | null;
@@ -117,6 +124,11 @@ function mineEnvelope(msg: Envelope, totals: Totals, ctxSamples: number[] | null
     }
   } else if (msg.type === "response_item" && TOOL_CALL_PAYLOAD_TYPES.has(payload.type ?? "") && payload.name) {
     totals.toolCounts[payload.name] = (totals.toolCounts[payload.name] ?? 0) + 1;
+    const delta = editToolLineDelta(payload.name, payload.arguments ?? payload.args);
+    if (delta) {
+      totals.linesAdded += delta.added;
+      totals.linesRemoved += delta.removed;
+    }
   }
   // Thread settings arrive as their own `thread_settings_applied` event,
   // independent of token-count reports, and can change during a session.
@@ -146,6 +158,8 @@ export async function mineTranscript(transcriptPath: string, state: MiningState,
   const totals: Totals = {
     tokensIn: state.tokensIn,
     tokensOut: state.tokensOut,
+    linesAdded: state.linesAdded,
+    linesRemoved: state.linesRemoved,
     toolCounts: { ...state.toolCounts },
     model: state.model ?? null,
     contextWindow: state.contextWindow ?? null,
@@ -179,6 +193,8 @@ export async function mineTranscript(transcriptPath: string, state: MiningState,
     subagentLines: state.subagentLines,
     tokensIn: totals.tokensIn,
     tokensOut: totals.tokensOut,
+    linesAdded: totals.linesAdded,
+    linesRemoved: totals.linesRemoved,
     toolCounts: totals.toolCounts,
     toolErrors: state.toolErrors,
     ctxSamples: capSamples(ctxSamples, sampleCap),

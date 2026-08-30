@@ -134,6 +134,17 @@ gets the full set, since its DB enriches by session id alone. And the bar
 only refreshes while the agent is alive in the first place — its hooks fire
 around the session's own events, so when it exits, the bar falls still.
 
+The `diff` metric is mined from the session's own edit calls, not the
+worktree: Claude Edit/MultiEdit/Write/ApplyPatch deltas, Codex and Hermes
+edit-tool arguments, and opencode's per-message `summary.diffs`. When
+nothing recoverable was found, Claude's host-reported total fills in; the
+rest fall back to zero. opencode's session-level `summary_*` columns are
+hard-zeroed since v1.16.0, so the per-message diffs are the surviving
+source there. A bare Write counts every line as added (no baseline), so
+overwritten files overcount. The `worktreeDiff` field (Codex-only) is
+deliberately separate: that one is the whole worktree's dirty-file total
+from `git diff --numstat`.
+
 ## Configuration
 
 Optional, at `${XDG_CONFIG_HOME:-$HOME/.config}/pharos/config.json`. A

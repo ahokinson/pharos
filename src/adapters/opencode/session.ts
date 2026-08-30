@@ -72,15 +72,16 @@ export function parseSession(raw: unknown): Session {
     // (verified: session.cost equals the sum of a session's own assistant
     // messages only), so fold them here — a Task-spawned subagent's work is
     // still this session's work, same rule as the claude adapter.
+    //
+    // added/removed stay 0 deliberately: opencode's session summary_*
+    // columns are zeroed since v1.16.0 and stale before it, so the session
+    // line delta comes from mined per-message diffs instead (see
+    // adapters/opencode/mining.ts) and never from these columns.
     let cost = row.cost;
-    let added = row.summaryAdditions;
-    let removed = row.summaryDeletions;
     for (const childId of getChildSessionIds(db, sessionId)) {
       const child = getSessionRow(db, childId);
       if (!child) continue;
       cost += child.cost;
-      added += child.summaryAdditions;
-      removed += child.summaryDeletions;
     }
 
     return {
@@ -89,8 +90,8 @@ export function parseSession(raw: unknown): Session {
       effort: variant ?? blob?.variant ?? "",
       pct: ctxSize > 0 ? Math.floor(((fill ?? 0) / ctxSize) * 100) : 0,
       cost,
-      added,
-      removed,
+      added: 0,
+      removed: 0,
     };
   } finally {
     db.close();

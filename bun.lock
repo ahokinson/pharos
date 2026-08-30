@@ -6,6 +6,7 @@
       "name": "pharos",
       "dependencies": {
         "@opentui/core": "^0.5.9",
+        "diff": "^9.0.0",
         "mustache": "^4.2.0",
         "zod": "^4.4.3",
       },

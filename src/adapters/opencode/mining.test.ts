@@ -20,6 +20,8 @@ function emptyState(): MiningState {
     subagentLines: {},
     tokensIn: 0,
     tokensOut: 0,
+    linesAdded: 0,
+    linesRemoved: 0,
     toolCounts: {},
     toolErrors: 0,
     ctxSamples: [],
@@ -133,6 +135,30 @@ describe("mineTranscript (opencode DB)", () => {
 
     const state = await mineTranscript(SID, emptyState());
     expect(state.permissionMode).toBe("default");
+  });
+
+  test("sums per-message diffs opencode recorded, own and child, user messages only", async () => {
+    db.query("insert into session (id) values (?)").run(SID);
+    db.query("insert into session (id, parent_id) values (?, ?)").run(CHILD, SID);
+    insertMessage(db, "m1", SID, 1, {
+      role: "user",
+      summary: {
+        diffs: [
+          { file: "a.ts", additions: 4, deletions: 1, status: "modified" },
+          { file: "b.ts", additions: 2, deletions: 0, status: "added" },
+        ],
+      },
+    });
+    insertMessage(db, "m2", CHILD, 2, {
+      role: "user",
+      summary: { diffs: [{ file: "c.ts", additions: 1, deletions: 3 }] },
+    });
+    // An assistant message's summary must not count: diffs are user-message-scoped.
+    insertMessage(db, "m3", SID, 3, { role: "assistant", summary: { diffs: [{ file: "x.ts", additions: 99, deletions: 99 }] } });
+
+    const state = await mineTranscript(SID, emptyState());
+    expect(state.linesAdded).toBe(7);
+    expect(state.linesRemoved).toBe(4);
   });
 
   test("fails open to the prior state when the DB is unreadable", async () => {

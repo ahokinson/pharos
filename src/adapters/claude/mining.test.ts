@@ -6,7 +6,7 @@ import { mineTranscript } from "@adapters/claude/mining";
 import type { MiningState } from "@session/mining";
 
 function emptyState(): MiningState {
-  return { minedLines: 0, subagentLines: {}, tokensIn: 0, tokensOut: 0, toolCounts: {}, toolErrors: 0, ctxSamples: [], permissionMode: null, model: null, contextWindow: null };
+  return { minedLines: 0, subagentLines: {}, tokensIn: 0, tokensOut: 0, linesAdded: 0, linesRemoved: 0, toolCounts: {}, toolErrors: 0, ctxSamples: [], permissionMode: null, model: null, contextWindow: null };
 }
 
 describe("mineTranscript (filesystem-backed)", () => {
@@ -146,5 +146,73 @@ describe("mineTranscript (filesystem-backed)", () => {
     writeFileSync(transcript, `${JSON.stringify({ type: "assistant", message: { usage: { input_tokens: 1 } } })}\n`);
     const state = await mineTranscript(transcript, emptyState());
     expect(state.tokensIn).toBe(1);
+  });
+
+  test("folds edit tool_use line deltas into the session diff", async () => {
+    const transcript = join(dir, "edit.jsonl");
+    writeFileSync(
+      transcript,
+      `${JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Edit", input: { old_string: "a\nb\n", new_string: "a\nb\nc\n" } }] } })}\n`,
+    );
+    const state = await mineTranscript(transcript, emptyState());
+    expect(state.linesAdded).toBe(1);
+    expect(state.linesRemoved).toBe(0);
+    expect(state.toolCounts).toEqual({ Edit: 1 });
+  });
+
+  test("MultiEdit, Write, and ApplyPatch all feed the same totals", async () => {
+    const transcript = join(dir, "edits.jsonl");
+    const line = JSON.stringify({
+      type: "assistant",
+      message: {
+        content: [
+          {
+            type: "tool_use",
+            name: "MultiEdit",
+            input: { edits: [{ old_string: "x\n", new_string: "y\n" }, { old_string: "a\n", new_string: "a\nb\n" }] },
+          },
+          { type: "tool_use", name: "Write", input: { content: "one\ntwo\n" } },
+          { type: "tool_use", name: "ApplyPatch", input: { patch: "--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new\n" } },
+        ],
+      },
+    });
+    writeFileSync(transcript, `${line}\n`);
+    const state = await mineTranscript(transcript, emptyState());
+    expect(state.linesAdded).toBe(5); // MultiEdit 2 + Write 2 + ApplyPatch 1
+    expect(state.linesRemoved).toBe(2); // MultiEdit 1 + ApplyPatch 1
+  });
+
+  test("line deltas accumulate incrementally without double-counting", async () => {
+    const transcript = join(dir, "incr.jsonl");
+    const line1 = JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "tool_use", name: "Edit", input: { old_string: "a\nb\n", new_string: "a\nb\nc\n" } }] },
+    });
+    writeFileSync(transcript, `${line1}\n`);
+    const state1 = await mineTranscript(transcript, emptyState());
+    expect(state1.linesAdded).toBe(1);
+
+    const line2 = JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "tool_use", name: "Edit", input: { old_string: "c\n", new_string: "" } }] },
+    });
+    writeFileSync(transcript, `${line1}\n${line2}\n`);
+    const state2 = await mineTranscript(transcript, state1);
+    expect(state2.linesAdded).toBe(1);
+    expect(state2.linesRemoved).toBe(1);
+  });
+
+  test("a subagent's edits fold into the same session diff", async () => {
+    const transcript = join(dir, "session456.jsonl");
+    writeFileSync(transcript, "");
+    const subagentDir = join(dir, "session456", "subagents");
+    mkdirSync(subagentDir, { recursive: true });
+    const agentLine = JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "tool_use", name: "Edit", input: { old_string: "a\n", new_string: "a\nb\n" } }] },
+    });
+    writeFileSync(join(subagentDir, "agent-1.jsonl"), `${agentLine}\n`);
+    const state = await mineTranscript(transcript, emptyState());
+    expect(state.linesAdded).toBe(1);
   });
 });

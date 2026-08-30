@@ -90,3 +90,20 @@ export function toolTotals(db: Database, ids: string[]): { counts: Record<string
     return { counts: {}, errors: 0, messages: 0 };
   }
 }
+
+/** Tool-call rows for a session tree, unwrapped; the `tool_calls` JSON
+ * shape varies by provider, so parsing/deciding is the miner's job (and a
+ * shape it can't read contributes nothing, fail-open like everything else
+ * in this adapter). */
+export function toolCallRows(db: Database, ids: string[]): { tool_name: string | null; tool_calls: string | null }[] {
+  if (!ids.length) return [];
+  const placeholders = ids.map(() => "?").join(",");
+  try {
+    return db.query(`select tool_name, tool_calls from messages
+      where session_id in (${placeholders}) and tool_calls is not null`).all(...ids) as {
+        tool_name: string | null; tool_calls: string | null;
+      }[];
+  } catch {
+    return [];
+  }
+}

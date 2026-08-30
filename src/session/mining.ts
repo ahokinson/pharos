@@ -16,6 +16,11 @@ export interface MiningState {
   subagentLines: Record<string, number>;
   tokensIn: number;
   tokensOut: number;
+  /** Lines the session's own edit calls added/removed, mined from the
+   * transcript (or the host's per-message diffs) rather than a host total
+   * that may reflect the whole worktree. See the adapter mining modules. */
+  linesAdded: number;
+  linesRemoved: number;
   toolCounts: Record<string, number>;
   toolErrors: number;
   ctxSamples: number[];
@@ -46,6 +51,8 @@ function emptyMiningState(): MiningState {
     subagentLines: {},
     tokensIn: 0,
     tokensOut: 0,
+    linesAdded: 0,
+    linesRemoved: 0,
     toolCounts: {},
     toolErrors: 0,
     ctxSamples: [],
@@ -74,6 +81,8 @@ const miningStateSchema = z.object({
   subagentLines: z.record(z.string(), z.number()).catch({}),
   tokensIn: z.number().catch(0),
   tokensOut: z.number().catch(0),
+  linesAdded: z.number().catch(0),
+  linesRemoved: z.number().catch(0),
   toolCounts: z.record(z.string(), z.number()).catch({}),
   toolErrors: z.number().catch(0),
   ctxSamples: z.array(z.number()).catch([]),

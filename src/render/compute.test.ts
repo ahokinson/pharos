@@ -9,7 +9,7 @@ const session: Session = {
 };
 
 const mined: MiningState = {
-  minedLines: 0, subagentLines: {}, tokensIn: 0, tokensOut: 0, toolCounts: {}, toolErrors: 0,
+  minedLines: 0, subagentLines: {}, tokensIn: 0, tokensOut: 0, linesAdded: 0, linesRemoved: 0, toolCounts: {}, toolErrors: 0,
   ctxSamples: [64600], permissionMode: null, model: "gpt-5.6-terra", contextWindow: 258400,
 };
 
@@ -21,5 +21,20 @@ describe("enrichSession", () => {
   test("preserves explicit hook metadata", () => {
     expect(enrichSession({ ...session, model: "Claude Opus", pct: 42, ctxSize: 100000 }, mined))
       .toMatchObject({ model: "Claude Opus", pct: 42, ctxSize: 100000 });
+  });
+
+  test("prefers the mined line delta over the session total", () => {
+    const result = enrichSession({ ...session, added: 17, removed: 7 }, { ...mined, linesAdded: 3, linesRemoved: 1 });
+    expect(result).toMatchObject({ added: 3, removed: 1 });
+  });
+
+  test("keeps the session total when nothing was mined (host-reported fallback)", () => {
+    const result = enrichSession({ ...session, added: 10, removed: 4 }, mined);
+    expect(result).toMatchObject({ added: 10, removed: 4 });
+  });
+
+  test("treats a mined zero-delta session as unmined, not as a real zero", () => {
+    const result = enrichSession({ ...session, added: 5, removed: 2 }, { ...mined, linesAdded: 0, linesRemoved: 0 });
+    expect(result).toMatchObject({ added: 5, removed: 2 });
   });
 });

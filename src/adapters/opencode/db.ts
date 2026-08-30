@@ -100,6 +100,18 @@ const messageDataSchema = z.looseObject({
       cache: z.looseObject({ read: z.number().optional(), write: z.number().optional() }).optional(),
     })
     .optional(),
+  // Per-message (per-turn) diff summaries. Since opencode v1.16.0 the
+  // session-level summary_* columns are hard-zeroed (see README Known gaps),
+  // but these per-turn diffs still land on user messages, so they're the
+  // surviving source for what a session actually changed. Shape mirrors
+  // opencode's Snapshot.FileDiff: { file, additions, deletions, status }.
+  summary: z
+    .looseObject({
+      diffs: z
+        .array(z.looseObject({ additions: z.number().optional(), deletions: z.number().optional() }))
+        .optional(),
+    })
+    .optional(),
 });
 
 export type OpencodeMessage = z.infer<typeof messageDataSchema>;
@@ -119,6 +131,35 @@ export function assistantMessages(db: Database, sessionId: string): OpencodeMess
   for (const row of rows) {
     const parsed = messageDataSchema.safeParse(jsonParse(row.data));
     if (parsed.success && parsed.data.role === "assistant") out.push(parsed.data);
+  }
+  return out;
+}
+
+/** Per-turn line deltas opencode recorded on a session's user messages, in
+ * creation order. Any user message may carry `summary.diffs` (each entry's
+ * additions/deletions), so sum them per message; a message without diffs
+ * contributes nothing. Empty when the row shape drifts on an upgrade. */
+export function userMessageDiffs(db: Database, sessionId: string): { added: number; removed: number }[] {
+  let rows: { data: string }[] = [];
+  try {
+    rows = db.query("select data from message where session_id = ? order by time_created").all(sessionId) as {
+      data: string;
+    }[];
+  } catch {
+    return [];
+  }
+  const out: { added: number; removed: number }[] = [];
+  for (const row of rows) {
+    const parsed = messageDataSchema.safeParse(jsonParse(row.data));
+    if (!parsed.success || parsed.data.role !== "user") continue;
+    const diffs = parsed.data.summary?.diffs ?? [];
+    let added = 0;
+    let removed = 0;
+    for (const diff of diffs) {
+      added += diff.additions ?? 0;
+      removed += diff.deletions ?? 0;
+    }
+    out.push({ added, removed });
   }
   return out;
 }
