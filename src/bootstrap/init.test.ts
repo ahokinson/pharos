@@ -8,6 +8,11 @@ import { generateBootstrapBundle } from "@bootstrap/init";
 const dirs: string[] = [];
 afterEach(() => {
   while (dirs.length) rmSync(dirs.pop()!, { recursive: true, force: true });
+  // generateBootstrapBundle sets process.exitCode on its usage/collision
+  // paths — correct for the real CLI, but a leaked global when the same
+  // function runs in-process inside a test. Left set, it fails the whole
+  // suite's exit code even though every test passed.
+  process.exitCode = undefined;
 });
 
 describe("generateBootstrapBundle", () => {
