@@ -3,6 +3,7 @@ import { parseAdapterName } from "@adapters/registry";
 import { generateBootstrapBundle } from "@bootstrap/init";
 import { loadConfig } from "@config";
 import { runList } from "@metrics";
+import { scrapeStatusLine } from "@session/scrape";
 import { dispatch } from "@tmux/dispatch";
 import { initTmux } from "@tmux/init";
 import { pulse } from "@tmux/pulse";
@@ -12,7 +13,7 @@ import pkg from "../package.json" with { type: "json" };
 
 function usage(): never {
   console.error(
-    "Usage: pharos init --harness <claude|codex|opencode|hermes|all> --output <directory> [--force] | pharos [--tool=<id>] tmux init | pharos tmux render | pharos tmux pane <template> <source-pane> | pharos tmux dispatch <state> | pharos tmux pulse <session> <token> | pharos list [--json] | pharos --version",
+    "Usage: pharos init --harness <claude|codex|opencode|hermes|all> --output <directory> [--force] | pharos [--tool=<id>] tmux init | pharos tmux render | pharos tmux pane <template> <source-pane> | pharos tmux dispatch <state> | pharos tmux pulse <session> <token> | pharos statusline scrape | pharos list [--json] | pharos --version",
   );
   process.exit(2);
 }
@@ -47,12 +48,12 @@ switch (command) {
     break;
   case "render":
     // Removed when pharos aligned on tmux as its one rendering surface;
-    // kept as a loud pointer so a stale statusLine/hook config fails with
-    // instructions instead of silence.
+    // kept as a loud pointer so a stale statusLine config pointing here
+    // fails with instructions instead of silence.
     console.error(
       "pharos: 'pharos render' is gone — pharos now renders in tmux's status bar for every host. " +
         "Run 'pharos tmux init' to wire the status bar, point your host's hooks at 'pharos tmux render', " +
-        "and remove any statusLine entry pointing here (see README).",
+        "and point any statusLine entry at 'pharos statusline scrape' instead (see README).",
     );
     process.exit(1);
   case "list":
@@ -61,6 +62,12 @@ switch (command) {
   case "init":
     await generateBootstrapBundle(rest);
     break;
+  case "statusline": {
+    const [sub] = rest;
+    if (sub === "scrape") await scrapeStatusLine();
+    else usage();
+    break;
+  }
   case "tmux": {
     const [sub, ...tmuxArgs] = rest;
     if (sub === "dispatch") await dispatch(tmuxArgs, await loadConfigWithToolOverride());

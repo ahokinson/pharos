@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { enrichSession } from "@render/compute";
-import type { MiningState, Session } from "@session";
+import type { ExternalSessionData, MiningState, Session } from "@session";
+import { emptyExternalState } from "@session";
 
 const session: Session = {
   model: "?", effort: "", thinking: false, fast: false, pct: null, ctxSize: 200000,
@@ -12,6 +13,8 @@ const mined: MiningState = {
   minedLines: 0, subagentLines: {}, tokensIn: 0, tokensOut: 0, linesAdded: 0, linesRemoved: 0, toolCounts: {}, toolErrors: 0,
   ctxSamples: [64600], permissionMode: null, model: "gpt-5.6-terra", contextWindow: 258400,
 };
+
+const external: ExternalSessionData = emptyExternalState();
 
 describe("enrichSession", () => {
   test("backfills absent hook metadata from a transcript", () => {
@@ -41,5 +44,25 @@ describe("enrichSession", () => {
   test("leaves pct null rather than guessing when nothing is derivable", () => {
     const result = enrichSession(session, { ...mined, ctxSamples: [] });
     expect(result.pct).toBeNull();
+  });
+
+  test("fills rate limits from the external (statusLine) source when hooks and mining have none", () => {
+    const result = enrichSession(session, mined, { ...external, rl5: 59, rl5Reset: 1788924200, rl7: 44, rl7Reset: 1788993200 });
+    expect(result).toMatchObject({ rl5: 59, rl5Reset: 1788924200, rl7: 44, rl7Reset: 1788993200 });
+  });
+
+  test("prefers the external context percentage over one derived from mined samples", () => {
+    const result = enrichSession(session, mined, { ...external, pct: 42, contextWindow: 1_000_000 });
+    expect(result).toMatchObject({ pct: 42, ctxSize: 1_000_000 });
+  });
+
+  test("fills cost from the external source when the session reports none", () => {
+    const result = enrichSession(session, mined, { ...external, cost: 18.25811785 });
+    expect(result.cost).toBeCloseTo(18.25811785);
+  });
+
+  test("an explicit hook value still wins over the external source", () => {
+    const result = enrichSession({ ...session, pct: 5, cost: 1.5 }, mined, { ...external, pct: 90, cost: 99 });
+    expect(result).toMatchObject({ pct: 5, cost: 1.5 });
   });
 });

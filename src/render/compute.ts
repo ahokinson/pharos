@@ -5,6 +5,8 @@ import { loadPlugins } from "@plugin";
 import { checkHealth, commandExists, runSync } from "@process";
 import { loadMiningState, saveMiningState } from "@session";
 import { approvalCapability, sandboxCapability, thinkingCapability } from "@session/capabilities";
+import type { ExternalSessionData } from "@session/external";
+import { emptyExternalState, loadExternalState } from "@session/external";
 import { DEFAULT_CTX_SIZE } from "@session/session";
 import type { Session } from "@session/session";
 import type { Field } from "@render/layout";
@@ -46,12 +48,21 @@ export interface RowBudgets {
 }
 
 /** Hooks for Codex and Claude often omit display metadata that their
- * transcripts contain. Prefer explicit hook values, then backfill from the
- * latest mined turn without inventing cost, diff, or rate-limit data. */
-export function enrichSession(session: Session, mined: Awaited<ReturnType<typeof loadMiningState>>): Session {
+ * transcripts contain. Prefer explicit hook values, then an external source
+ * (`external` — a host's own `statusLine`-style invocation, the only place
+ * cost/context-window-size/rate-limits ever come from for Claude, since no
+ * hook event carries them), then backfill from the latest mined turn,
+ * without ever inventing cost, diff, or rate-limit data. */
+export function enrichSession(
+  session: Session,
+  mined: Awaited<ReturnType<typeof loadMiningState>>,
+  external: ExternalSessionData = emptyExternalState(),
+): Session {
   const latestContext = mined.ctxSamples.at(-1);
-  const ctxSize = session.ctxSize === DEFAULT_CTX_SIZE ? mined.contextWindow ?? session.ctxSize : session.ctxSize;
+  const ctxSize =
+    session.ctxSize === DEFAULT_CTX_SIZE ? external.contextWindow ?? mined.contextWindow ?? session.ctxSize : session.ctxSize;
   const canDeriveContext = session.pct === null && typeof latestContext === "number" && ctxSize > 0;
+  const derivedPct = canDeriveContext ? Math.min(100, Math.floor((latestContext / ctxSize) * 100)) : null;
   // The session line delta is whatever the transcript's edit calls actually
   // produced; only a host-reported total (Claude's cost.total_lines_*) is
   // trusted when the session's edits were unrecoverable — never the other
@@ -60,15 +71,17 @@ export function enrichSession(session: Session, mined: Awaited<ReturnType<typeof
   return {
     ...session,
     model: session.model === "?" ? mined.model ?? session.model : session.model,
-    cost: session.cost === 0 ? mined.cost ?? session.cost : session.cost,
+    cost: session.cost === 0 ? external.cost ?? mined.cost ?? session.cost : session.cost,
     ctxSize,
-    pct: canDeriveContext ? Math.min(100, Math.floor((latestContext / ctxSize) * 100)) : session.pct,
+    // external.pct is Anthropic's own reported percentage — more authoritative
+    // than derivedPct, our own estimate off sampled turn totals.
+    pct: session.pct ?? external.pct ?? derivedPct,
     added: minedAnyDiff ? mined.linesAdded : session.added,
     removed: minedAnyDiff ? mined.linesRemoved : session.removed,
-    rl5: session.rl5 ?? mined.rl5 ?? null,
-    rl5Reset: session.rl5Reset ?? mined.rl5Reset ?? null,
-    rl7: session.rl7 ?? mined.rl7 ?? null,
-    rl7Reset: session.rl7Reset ?? mined.rl7Reset ?? null,
+    rl5: session.rl5 ?? external.rl5 ?? mined.rl5 ?? null,
+    rl5Reset: session.rl5Reset ?? external.rl5Reset ?? mined.rl5Reset ?? null,
+    rl7: session.rl7 ?? external.rl7 ?? mined.rl7 ?? null,
+    rl7Reset: session.rl7Reset ?? external.rl7Reset ?? mined.rl7Reset ?? null,
   };
 }
 
@@ -90,7 +103,8 @@ export async function computeRows(raw: unknown, config: Config, budgets: RowBudg
     config.context.sampleCap,
   );
   await saveMiningState(parsedSession.sessionId, mined);
-  const session = enrichSession(parsedSession, mined);
+  const external = await loadExternalState(parsedSession.sessionId);
+  const session = enrichSession(parsedSession, mined, external);
 
   const onPlan = session.rl5 !== null || session.rl7 !== null;
   const style = buildStyleKit(effective);

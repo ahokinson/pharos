@@ -88,12 +88,28 @@ theme:
 - `pharos tmux pane <template> <source-pane>` — continuously repaints a
   named ANSI template stored on `source-pane`. It is intended as the command
   in a dedicated tmux pane; tmux layout policy remains the user's concern.
+- `pharos statusline scrape` — wired into Claude Code's `statusLine`
+  config, not a hook. No hook event ever carries cost, context-window
+  size, or rate limits (verified against a live payload — see "Known
+  gaps"); `statusLine` is the only surface that does. This command reads
+  that payload, persists what it finds, and prints nothing — Claude Code's
+  own status line stays blank, since the tmux sidecard is the only surface
+  anyone looks at. `computeRows` folds the result in as a source below an
+  explicit hook field but above a mined-transcript guess.
 - `pharos list` — prints every metric pharos knows about, built-in and
   plugin-loaded, with whether it's currently on. See "Discovering metrics"
   below.
 
 `tmux init` is safe to run again: it only clears Pharos-owned historical
 status-bar references.
+
+For cost/context-window/rate-limit data on Claude Code, also add a
+`statusLine` entry (a separate config key from `hooks`) alongside the hooks
+above:
+
+```json
+"statusLine": { "type": "command", "command": "pharos statusline scrape" }
+```
 
 ## Rendering for opencode
 
@@ -132,13 +148,19 @@ changed database results in an unenriched card rather than a broken session.
 ## Known gaps
 
 Hosts render differently, and the differences are honest: a Claude Code
-hook payload carries `session_id`/`transcript_path` but not the
-statusline-era fields (cost, rate limit, context window), so those read
-empty under hook-only rendering — transcript mining still feeds tools,
-tokens, tool errors, and permission. Codex has the same story plus a
-smaller verified surface (see `src/adapters/codex/session.ts`). opencode
-gets the full set, since its DB enriches by session id alone. And the bar
-only refreshes while the agent is alive in the first place — its hooks fire
+hook payload carries `session_id`/`transcript_path` but never cost,
+rate limits, or the real context-window size — verified against a live
+payload, not just docs; no hook event, from `PreToolUse` through
+`SessionEnd`, carries them. Transcript mining still feeds tools, tokens,
+tool errors, and permission. The one surface that does carry them is
+`statusLine`, a separate Claude Code config key from `hooks`; see
+`pharos statusline scrape` above — without that entry configured, Claude
+Code sessions show an honest "unknown" placeholder for context usage and
+no rate-limit meter at all, rather than a wrong number. Codex has the same
+hook-payload story but a mining fallback for all three, plus a smaller
+verified surface (see `src/adapters/codex/session.ts`). opencode gets the
+full set, since its DB enriches by session id alone. And the bar only
+refreshes while the agent is alive in the first place — its hooks fire
 around the session's own events, so when it exits, the bar falls still.
 
 The `diff` metric is mined from the session's own edit calls, not the
@@ -189,8 +211,7 @@ keep their default.
   },
   "context": { "sampleCap": 40 },
   "pulse": {
-    "tail": 200, "stepMs": 33, "sweep": 28, "gapFraction": 0.33,
-    "statusLeft": 1, "leadSpace": 1, "margin": 2, "remeasureEvery": 30,
+    "tail": 200, "stepMs": 33,
     "themeVars": { "think": "@thm_blue", "tool": "@thm_lavender", "ask": "@thm_yellow", "background": "@thm_mantle" },
     "fallbackColors": { "think": "#8caaee", "tool": "#babbf1", "ask": "#e5c890", "background": "#292c3c" }
   },
@@ -237,11 +258,9 @@ keep their default.
   default, since that's the mode where whatever external safety tooling
   you've wired up via a plugin is the only protection left; see "Example:
   cerberus" below).
-- `pulse.statusLeft`/`leadSpace`/`margin`: geometry offsets subtracted from
-  the tmux client width when measuring how much room the pulse sweep has
-  (see `measureWidth` in `src/tmux/pulse.ts`). `remeasureEvery`: how many
-  animation frames between re-measuring that width (tabs can resize
-  between renders).
+- `pulse.stepMs`: milliseconds per animation frame (speed of the beam
+  sweep). `tail`: how many hex shades the fade from accent to background is
+  broken into.
 - `plugins`: absolute paths (env-expanded, `~`/`$VAR` work) to plugin
   modules — see below.
 
