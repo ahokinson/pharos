@@ -9,12 +9,15 @@
 # opencode package (also a bun --compile binary) uses stdenvNoCC for the
 # same reason.
 let
-  version = "0.2.2";
+  version = "0.2.3";
 
   # `bun build --compile` resolves imports from a real node_modules, so the
   # dependency tree has to exist before the build proper. Fetching it needs
   # the network, which only a fixed-output derivation may have — hence the
-  # hash below. It changes whenever bun.lock does; the build reports the
+  # hash below. It is NOT just a function of bun.lock: `bun install` writes
+  # `node_modules/.bin/*` symlinks whose targets embed `src`'s own (content-
+  # addressed) store path, so this changes on every release, dependency
+  # bump or not. Update it on every version bump — the build reports the
   # correct one on mismatch.
   nodeModules = stdenvNoCC.mkDerivation {
     pname = "pharos-node-modules";
@@ -40,7 +43,7 @@ let
     dontFixup = true;
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-z6zGwwLpro3/DjN9JlWzZTHjLcXuI3D0K6tLRsw1ecs=";
+    outputHash = "sha256-0OczA3Ibot6XUEFrDIqonbXOQR18mK50+mSwDxGJ4cM=";
   };
 in
 stdenvNoCC.mkDerivation {
