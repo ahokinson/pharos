@@ -15,7 +15,13 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install --frozen-lockfile
+
+      # `--os '*' --cpu '*'` pulls every platform's @opentui/core prebuild, not
+      # just this runner's. Without it the darwin cross-builds below don't just
+      # ship without libopentui — they fail outright on an unresolvable
+      # `import("@opentui/core-darwin-arm64")`. Bun drops the prebuilds that
+      # aren't the target's, so each binary still carries exactly one.
+      - run: bun install --frozen-lockfile --os '*' --cpu '*'
       - run: bun test
 
       # Bun cross-compiles `--compile` binaries from a single host, so one

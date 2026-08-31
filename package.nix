@@ -1,4 +1,4 @@
-{ stdenvNoCC, bun, src }:
+{ stdenvNoCC, bun, src, lockSrc ? src }:
 
 # stdenvNoCC, not stdenv: this is a statically self-contained bun --compile
 # binary, not something a C compiler links, so it has no business going
@@ -14,14 +14,26 @@ let
   # `bun build --compile` resolves imports from a real node_modules, so the
   # dependency tree has to exist before the build proper. Fetching it needs
   # the network, which only a fixed-output derivation may have — hence the
-  # hash below. It is NOT just a function of bun.lock: `bun install` writes
-  # `node_modules/.bin/*` symlinks whose targets embed `src`'s own (content-
-  # addressed) store path, so this changes on every release, dependency
-  # bump or not. Update it on every version bump — the build reports the
-  # correct one on mismatch.
+  # hash below.
+  #
+  # `--os '*' --cpu '*'` is what makes that hash portable. @opentui/core ships
+  # its native Zig library as eight per-platform optional dependencies gated by
+  # `os`/`cpu`; left to itself `bun install` materializes only the ones matching
+  # the machine it runs on, so a darwin tree and a linux tree hash differently
+  # and no single value can describe both. Installing every platform's prebuild
+  # makes this output identical everywhere. It costs nothing at the far end:
+  # opentui picks its library through `process.platform` branches that bun's
+  # bundler resolves at compile time, so the binary still embeds only ours.
+  # Quote the globs — bare `*` would glob against the build directory.
+  #
+  # The name deliberately carries no version. A fixed-output derivation's store
+  # path is derived from its name and hash alone, so a versioned name would
+  # change the path on every release, forcing a re-fetch and re-verification of
+  # a dependency tree that never moved. Update outputHash when bun.lock changes;
+  # the build reports the correct value on mismatch.
   nodeModules = stdenvNoCC.mkDerivation {
-    pname = "pharos-node-modules";
-    inherit version src;
+    name = "pharos-node-modules";
+    src = lockSrc;
 
     nativeBuildInputs = [ bun ];
     dontConfigure = true;
@@ -29,7 +41,7 @@ let
     buildPhase = ''
       runHook preBuild
       export HOME=$TMPDIR
-      bun install --frozen-lockfile --no-progress --ignore-scripts
+      bun install --frozen-lockfile --no-progress --ignore-scripts --os '*' --cpu '*'
       runHook postBuild
     '';
 
@@ -43,7 +55,7 @@ let
     dontFixup = true;
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-0OczA3Ibot6XUEFrDIqonbXOQR18mK50+mSwDxGJ4cM=";
+    outputHash = "sha256-Kiht1OpSa5AEVuqZQ3SFhkdTKU8XmGDQBCImNy+SUqc=";
   };
 in
 stdenvNoCC.mkDerivation {
