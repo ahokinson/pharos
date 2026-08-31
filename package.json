@@ -1,6 +1,6 @@
 {
   "name": "pharos",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Renders AI coding agents' live session state as statusline fields and a tmux pulse.",
   "license": "MIT",
   "repository": "github.com/ahokinson/pharos",
