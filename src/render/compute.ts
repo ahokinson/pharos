@@ -1,9 +1,11 @@
 import { resolveAdapter } from "@adapters/registry";
+import { padField } from "@color";
 import type { Config } from "@config";
 import { buildFieldTexts, buildRegistry, buildStyleKit } from "@metrics";
 import { loadPlugins } from "@plugin";
-import { checkHealth, commandExists, runSync } from "@process";
+import { checkHealth, commandExists } from "@process";
 import { loadMiningState, saveMiningState } from "@session";
+import { probeGit } from "@session/git";
 import { approvalCapability, sandboxCapability, thinkingCapability } from "@session/capabilities";
 import type { ExternalSessionData } from "@session/external";
 import { emptyExternalState, loadExternalState } from "@session/external";
@@ -34,13 +36,34 @@ function rateCardLine(pct: number | null, reset: string | number | null, nowEpoc
   return `${color}${meter} ${value}%${style.color("overlay1")}${resetText ? ` ${resetText}` : ""}`;
 }
 
-function prettyModelName(model: string): string {
+// The card's own harness row already names the host, so a leading vendor
+// token is six columns of nothing; a trailing variant tag ("[1m]") is the
+// context window, which ctxWindow reports from the real number rather than
+// the model id's rounding. "GPT" stays: that's the family, not the vendor.
+const VENDOR_PREFIX = /^(?:claude|anthropic|openai|google)-/i;
+const VARIANT_TAG = /\[[^\]]*\]$/;
+
+export function prettyModelName(model: string): string {
   const known: Record<string, string> = {
     "gpt-5.6-terra": "GPT 5.6 Terra",
     "gpt-5.6-luna": "GPT 5.6 Luna",
     "gpt-5.6-sol": "GPT 5.6 Sol",
   };
-  return known[model] ?? model.replace(/(^|-)([a-z])/g, (_match, _separator, letter) => ` ${letter.toUpperCase()}`).trim();
+  if (known[model]) return known[model];
+  const trimmed = model.replace(VARIANT_TAG, "").trim();
+  // Only strip the vendor when something survives it — "claude" on its own
+  // is still the most useful name we have for that model.
+  const stripped = trimmed.replace(VENDOR_PREFIX, "") || trimmed;
+  const resolved = known[stripped];
+  if (resolved) return resolved;
+  // Every hyphen is a word break, including one before a digit: the older
+  // regex only capitalized letters, so "opus-5" kept its hyphen and read
+  // "Opus-5".
+  return stripped
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 /** Per-row width budgets, since the delivery surface may give each row its
@@ -105,6 +128,24 @@ export async function computeRows(raw: unknown, config: Config, budgets: RowBudg
     await loadMiningState(parsedSession.sessionId),
     config.context.sampleCap,
   );
+  // Hooks run in the agent's working directory, which is the only handle
+  // Claude Code and opencode give us on one — neither carries repository
+  // metadata the way Codex's payload and Hermes's DB do. Probing before the
+  // checkpoint is saved means origin's URL is resolved once per session
+  // rather than once per hook: it cannot change while a session runs.
+  const cwd = mined.cwd ?? process.cwd();
+  const git = probeGit(cwd, { remote: !mined.repository });
+  if (git) {
+    mined.cwd = cwd;
+    // The live branch wins: a host's transcript records whatever was checked
+    // out when it wrote that line, while the probe just read HEAD. Repository
+    // and host go the other way — a host that reports a remote URL outright
+    // (Codex) is at least as good as parsing origin's, and this is the value
+    // being memoized, so it should stay stable once resolved.
+    mined.branch = git.branch ?? mined.branch ?? null;
+    mined.repository = mined.repository ?? git.repository;
+    mined.gitHost = mined.gitHost ?? git.host;
+  }
   await saveMiningState(parsedSession.sessionId, mined);
   const external = await loadExternalState(parsedSession.sessionId);
   const session = enrichSession(parsedSession, mined, external);
@@ -125,17 +166,25 @@ export async function computeRows(raw: unknown, config: Config, budgets: RowBudg
     if (text === null || text === undefined) continue;
     const setting = effective.fieldSettings[name];
     if (!setting) continue;
-    fields.push({ line: setting.row, text, priority: setting.priority });
+    // Column padding is a status-bar concern only, applied here rather than
+    // in buildFieldTexts so the same metric text can reach a template
+    // surface unpadded — see that function's comment.
+    fields.push({ line: setting.row, text: padField(text, effective.widths[name] ?? 0), priority: setting.priority });
   }
 
   const renderedFields: Record<string, string | string[]> = Object.fromEntries(
     Object.entries(texts).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
   );
+  // The card's Context row drops the " of <window>" tail the status-bar
+  // field carries: the window size is a constant for the whole session, so
+  // repeating it every render costs ~8 of the ~26 columns a narrow card has
+  // to spend. `ctxWindow` below publishes it once, for the Model row.
   if (texts.context) {
     renderedFields.contextCard = texts.context
-      .replace(" of ", " · ")
+      .replace(` of ${style.humanize(session.ctxSize)}`, "")
       .replace(/\x1b\[[0-9;]*m (?:rising|falling|steady)$/, "");
   }
+  renderedFields.ctxWindow = `${style.color("overlay1")}${style.humanize(session.ctxSize)}`;
   // A status bar benefits from one compact rate field; a narrow sidecard
   // needs each account window on its own row. The middot is emitted only
   // by the built-in rate metric, and splitting preserves each segment's
@@ -169,25 +218,29 @@ export async function computeRows(raw: unknown, config: Config, budgets: RowBudg
     if (mined.gitHost) {
       const host = mined.gitHost.includes("gitlab") ? "GitLab" : mined.gitHost.includes("codeberg") ? "Codeberg" : "GitHub";
       renderedFields.gitProvider = `${style.color("sky")}${host}`;
-      renderedFields.gitIcon = mined.gitHost.includes("gitlab") ? "" : mined.gitHost.includes("codeberg") ? "" : "";
+      const gitIcon = mined.gitHost.includes("gitlab") ? "" : mined.gitHost.includes("codeberg") ? "" : "";
+      renderedFields.gitIcon = gitIcon;
+      // The provider's glyph says what the word "GitHub" says in one column
+      // instead of six — worth the trade on a card whose Remote row would
+      // otherwise spend a quarter of its width on the host's name.
+      if (mined.repository) {
+        renderedFields.origin = `${style.color("sky")}${gitIcon} ${mined.repository}`;
+      }
     }
   }
-  if (mined.cwd) {
-    const status = runSync(["git", "-C", mined.cwd, "status", "--porcelain"]).stdout.trim();
-    if (status) {
-      const files = status.split("\n").filter(Boolean).length;
-      const diff = runSync(["git", "-C", mined.cwd, "diff", "--numstat"]).stdout.trim();
-      let added = 0;
-      let removed = 0;
-      for (const line of diff.split("\n")) {
-        const [a, d] = line.split("\t");
-        added += Number(a) || 0;
-        removed += Number(d) || 0;
-      }
-      renderedFields.worktree = `${style.color("peach")}● dirty${style.color("overlay1")} · ${files} files`;
-      renderedFields.worktreeDiff = `${style.color("green")}+${added}  ${style.color("red")}−${removed}`;
-    } else {
-      renderedFields.worktree = `${style.color("green")}● clean`;
+  // A null probe is "not a worktree, or git didn't answer" — distinct from a
+  // clean one, and left unset so the card shows its own placeholder. The
+  // code this replaces read an unchecked exit code, so any failure (a
+  // non-repo cwd included) claimed "clean".
+  if (git) {
+    renderedFields.worktree = git.dirtyFiles > 0
+      ? `${style.color("peach")}● ${git.dirtyFiles} dirty`
+      : `${style.color("green")}● clean`;
+    // Untracked files are dirty but contribute no numstat rows, so a
+    // worktree holding only new files would read "+0  −0". Same rule the
+    // diff/cost/tokens metrics follow: say nothing rather than say zero.
+    if (git.added > 0 || git.removed > 0) {
+      renderedFields.worktreeDiff = `${style.color("green")}+${git.added}  ${style.color("red")}−${git.removed}`;
     }
   }
   const cardRate5 = rateCardLine(session.rl5, session.rl5Reset, nowEpoch, style);

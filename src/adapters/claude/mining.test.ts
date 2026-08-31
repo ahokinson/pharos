@@ -215,4 +215,44 @@ describe("mineTranscript (filesystem-backed)", () => {
     const state = await mineTranscript(transcript, emptyState());
     expect(state.linesAdded).toBe(1);
   });
+
+  // Claude Code stamps these on every line and no hook payload carries
+  // them; without mining them the shared git probe has no directory to
+  // look at and the card's repository rows stay permanently empty.
+  test("mines the working directory and branch stamped on transcript lines", async () => {
+    const transcript = join(dir, "transcript.jsonl");
+    const line = JSON.stringify({
+      type: "assistant",
+      cwd: "/home/dev/project",
+      gitBranch: "develop",
+      message: { usage: { input_tokens: 10, output_tokens: 2 } },
+    });
+    writeFileSync(transcript, `${line}\n`);
+
+    const state = await mineTranscript(transcript, emptyState());
+    expect(state.cwd).toBe("/home/dev/project");
+    expect(state.branch).toBe("develop");
+  });
+
+  test("the latest line wins, so a branch switch mid-session moves the card", async () => {
+    const transcript = join(dir, "transcript.jsonl");
+    const first = JSON.stringify({ type: "user", cwd: "/a", gitBranch: "main" });
+    const second = JSON.stringify({ type: "user", cwd: "/b", gitBranch: "feature" });
+    writeFileSync(transcript, `${first}\n${second}\n`);
+
+    const state = await mineTranscript(transcript, emptyState());
+    expect(state).toMatchObject({ cwd: "/b", branch: "feature" });
+  });
+
+  // The probe in render/compute parks origin's URL on the checkpoint so it
+  // shells out once per session; rebuilding the state object each render
+  // must not drop it.
+  test("carries a previously resolved remote through an incremental mine", async () => {
+    const transcript = join(dir, "transcript.jsonl");
+    writeFileSync(transcript, `${JSON.stringify({ type: "user", cwd: "/a" })}\n`);
+
+    const seeded = { ...emptyState(), repository: "owner/repo", gitHost: "github.com" };
+    const state = await mineTranscript(transcript, seeded);
+    expect(state).toMatchObject({ repository: "owner/repo", gitHost: "github.com" });
+  });
 });

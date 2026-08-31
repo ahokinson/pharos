@@ -170,9 +170,21 @@ nothing recoverable was found, Claude's host-reported total fills in; the
 rest fall back to zero. opencode's session-level `summary_*` columns are
 hard-zeroed since v1.16.0, so the per-message diffs are the surviving
 source there. A bare Write counts every line as added (no baseline), so
-overwritten files overcount. The `worktreeDiff` field (Codex-only) is
-deliberately separate: that one is the whole worktree's dirty-file total
-from `git diff --numstat`.
+overwritten files overcount. The `worktreeDiff` field is deliberately
+separate: that one is the whole worktree's total from
+`git diff --numstat HEAD`, staged and unstaged alike.
+
+Repository fields — `branch`, `remote`, `origin`, `worktree`,
+`worktreeDiff` — come from git itself rather than a host's transcript, so
+they work under every harness. The directory is whichever the host
+reported (Codex's payload, Hermes's database, the `cwd` Claude Code stamps
+on each transcript line), falling back to the hook process's own working
+directory, which is what covers opencode. When that directory isn't a git
+worktree, or git doesn't answer, the fields stay unset and a card shows its
+own placeholder rather than claiming the tree is clean. `worktreeDiff` is
+silent when a worktree holds only untracked files, since those contribute
+no line counts — the same "blank rather than a misleading zero" rule
+`diff`, `cost`, and `tokens` follow.
 
 ## Configuration
 

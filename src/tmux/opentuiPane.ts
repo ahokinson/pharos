@@ -42,8 +42,10 @@ function ansiToStyledText(text: string): StyledText {
 }
 
 /** Renders an ANSI Mustache template inside an OpenTUI-owned tmux pane.
- * Flex-end alignment is cell-aware, so icons, gradients, and resizes need no
- * hand-counted padding. */
+ * Alignment is cell-aware, so icons, gradients, and resizes need no
+ * hand-counted padding — and metric text must reach here unpadded, which is
+ * why column widths are applied in render/compute rather than upstream of
+ * both surfaces. */
 export async function renderOpenTuiPane(templateName: string, sourcePane: string): Promise<void> {
   if (!templateName || !sourcePane || !commandExists("tmux")) return;
 
@@ -68,10 +70,9 @@ export async function renderOpenTuiPane(templateName: string, sourcePane: string
     // are separated by a blank backgroundChrome strip (press's Header with
     // neither slot filled), the same device press uses for a labelless
     // divider row, so the card reads as one panel throughout.
-    card = new BoxRenderable(renderer, {
+    const panelCard = new BoxRenderable(renderer, {
       width: "100%",
       flexDirection: "column",
-      alignItems: "flex-end",
       flexShrink: 0,
       border: true,
       borderStyle: "rounded",
@@ -98,6 +99,10 @@ export async function renderOpenTuiPane(templateName: string, sourcePane: string
       alignItems: "center",
       gap: 0,
       height: 2,
+      // The first section's own divider used to sit flush against the
+      // glyph. Dividers now separate sections only, so the beacon buys its
+      // own breathing room here instead of borrowing a band's.
+      marginBottom: 1,
     });
     beacon.add(new TextRenderable(renderer, {
       // An empty StyledText carries no chunks and measures as nothing; a
@@ -111,14 +116,16 @@ export async function renderOpenTuiPane(templateName: string, sourcePane: string
       flexShrink: 0,
       wrapMode: "none",
     }));
-    card.add(beacon);
+    panelCard.add(beacon);
 
-    // Fixed-shape sections (the template supplies a `---` filler line for
-    // any field it doesn't have data for) mean a divider's position never
-    // moves as data comes and goes.
+    // Fixed-shape sections (the template supplies a filler value for any
+    // field it doesn't have data for) mean a divider's position never moves
+    // as data comes and goes.
     const sections = content.split(/\n{2,}/).filter(Boolean);
-    for (const section of sections) {
-      card.add(divider());
+    sections.forEach((section, index) => {
+      // Between sections, not before the first: a leading band read as a
+      // stray bar hanging off the beacon rather than as a separator.
+      if (index > 0) panelCard.add(divider());
       const lines = section.split("\n");
       const panel = new BoxRenderable(renderer, { width: "100%", flexDirection: "column" });
       for (const line of lines) {
@@ -133,6 +140,11 @@ export async function renderOpenTuiPane(templateName: string, sourcePane: string
           height: 1,
           flexDirection: "row",
           justifyContent: tab === -1 ? "flex-end" : "space-between",
+          // space-between alone lets a label and a wide value touch, which
+          // reads as one run-on string. A gap is the floor between them;
+          // values are kept short at the source (see render/compute) rather
+          // than truncated here.
+          gap: 2,
         });
         if (tab === -1) {
           lineBox.add(new TextRenderable(renderer, {
@@ -155,9 +167,10 @@ export async function renderOpenTuiPane(templateName: string, sourcePane: string
         }
         panel.add(lineBox);
       }
-      card.add(panel);
-    }
-    renderer.root.add(card);
+      panelCard.add(panel);
+    });
+    card = panelCard;
+    renderer.root.add(panelCard);
   };
 
   const shutdown = () => renderer.destroy();

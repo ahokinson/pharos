@@ -47,9 +47,15 @@ const contentItemSchema = z.looseObject({
   input: editInputSchema.optional(),
 });
 
+// Claude Code stamps the working directory and branch on every transcript
+// line, which is the only repository metadata it ever exposes — no hook
+// payload carries either. Mining them is what lets the shared git probe in
+// render/compute run for Claude sessions at all.
 const transcriptLineSchema = z.looseObject({
   type: z.string().optional(),
   permissionMode: z.string().optional(),
+  cwd: z.string().optional(),
+  gitBranch: z.string().optional(),
   message: z
     .looseObject({
       usage: usageSchema.optional(),
@@ -69,6 +75,8 @@ interface Totals {
   toolCounts: Record<string, number>;
   toolErrors: number;
   model: string | null;
+  cwd: string | null;
+  branch: string | null;
 }
 
 /** Line delta a tool_use call reports for the session, by tool vocabulary.
@@ -110,6 +118,10 @@ function editLineDelta(
 /** Folds one parsed line into `totals`; `ctxSamples`, when given, gets each
  * assistant turn's total context tokens appended (main transcript only). */
 function mineLine(msg: TranscriptLine, totals: Totals, ctxSamples: number[] | null): void {
+  // Outside the type switch: these ride on every line shape, and the latest
+  // wins — a `/cd` mid-session or a branch switch should move the card.
+  if (msg.cwd) totals.cwd = msg.cwd;
+  if (msg.gitBranch) totals.branch = msg.gitBranch;
   if (msg.type === "assistant") {
     const usage = msg.message?.usage;
     if (usage) {
@@ -154,6 +166,8 @@ export async function mineTranscript(transcriptPath: string, state: MiningState,
     toolCounts: { ...state.toolCounts },
     toolErrors: state.toolErrors,
     model: state.model ?? null,
+    cwd: state.cwd ?? null,
+    branch: state.branch ?? null,
   };
   const ctxSamples = [...state.ctxSamples];
   let minedLines = state.minedLines;
@@ -207,5 +221,12 @@ export async function mineTranscript(transcriptPath: string, state: MiningState,
     permissionMode,
     model: totals.model,
     contextWindow: state.contextWindow,
+    cwd: totals.cwd,
+    branch: totals.branch,
+    // Carried through untouched: the shared git probe resolves origin's URL
+    // once and parks it here, and rebuilding this object each render would
+    // otherwise drop it and re-shell-out on every hook.
+    repository: state.repository ?? null,
+    gitHost: state.gitHost ?? null,
   };
 }

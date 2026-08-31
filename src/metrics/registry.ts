@@ -1,4 +1,3 @@
-import { padField } from "@color";
 import type { Config } from "@config";
 import type { ResolvedPlugins } from "@plugin";
 import { BUILTIN_METRICS } from "@metrics/builtins";
@@ -36,18 +35,20 @@ export function buildRegistry(config: Config, resolved: ResolvedPlugins): Regist
   return { registry, config: { ...config, fieldSettings, widths, metricStyle } };
 }
 
-/** Computes every id in config.fieldOrder, width-padded. Iterates
- * fieldOrder rather than the registry's own keys since the id space is
- * open once plugins are involved. The tradeoff for that openness is
- * losing the compile-time exhaustiveness a closed Record<FieldName, ...>
+/** Computes every id in config.fieldOrder, unpadded. Column widths belong
+ * to the status-bar row layout alone (render/compute pads on its way into
+ * fitRow): the template surface right-aligns its own values, so a trailing
+ * pad would push each one off the card's right edge by a different amount.
+ * Iterates fieldOrder rather than the registry's own keys since the id
+ * space is open once plugins are involved. The tradeoff for that openness
+ * is losing the compile-time exhaustiveness a closed Record<FieldName, ...>
  * would give. A throwing metric (see safeRender) is hidden, not fatal. */
 export function buildFieldTexts(ctx: MetricContext, registry: Record<string, Metric>): Partial<Record<string, string | null>> {
   const out: Partial<Record<string, string | null>> = {};
   for (const name of ctx.config.fieldOrder) {
     const metric = registry[name];
     if (!metric) continue;
-    const raw = safeRender(metric, ctx);
-    out[name] = raw === null ? null : padField(raw, ctx.config.widths[name] ?? 0);
+    out[name] = safeRender(metric, ctx);
   }
   return out;
 }

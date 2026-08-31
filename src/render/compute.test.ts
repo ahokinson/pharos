@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { enrichSession } from "@render/compute";
+import { enrichSession, prettyModelName } from "@render/compute";
 import type { ExternalSessionData, MiningState, Session } from "@session";
 import { emptyExternalState } from "@session";
 
@@ -64,5 +64,29 @@ describe("enrichSession", () => {
   test("an explicit hook value still wins over the external source", () => {
     const result = enrichSession({ ...session, pct: 5, cost: 1.5 }, mined, { ...external, pct: 90, cost: 99 });
     expect(result).toMatchObject({ pct: 5, cost: 1.5 });
+  });
+});
+
+// The card is ~26 columns wide inside its border and padding, so every
+// column the model name doesn't spend on the vendor is one the value keeps.
+describe("prettyModelName", () => {
+  test("drops the vendor prefix the harness row already implies", () => {
+    expect(prettyModelName("claude-opus-5")).toBe("Opus 5");
+  });
+
+  test("drops a variant tag, which ctxWindow reports properly", () => {
+    expect(prettyModelName("claude-opus-5[1m]")).toBe("Opus 5");
+  });
+
+  test("keeps a known name verbatim", () => {
+    expect(prettyModelName("gpt-5.6-terra")).toBe("GPT 5.6 Terra");
+  });
+
+  test("keeps GPT, which is a family and not a vendor", () => {
+    expect(prettyModelName("gpt-4o-mini")).toBe("Gpt 4o Mini");
+  });
+
+  test("keeps a bare vendor name rather than stripping to nothing", () => {
+    expect(prettyModelName("claude")).toBe("Claude");
   });
 });
