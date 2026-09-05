@@ -58,8 +58,32 @@ export async function renderOpenTuiPane(templateName: string, sourcePane: string
   const option = templateOptionName(templateName);
   let previous = "";
   let card: BoxRenderable | undefined;
+  let beaconPulse: TextRenderable | undefined;
+  // One entry per rendered line: the value node always exists, the label
+  // node only for a tabbed (label/value) line. Kept so later polls can push
+  // new text into place instead of rebuilding — see updateCard below.
+  let lineNodes: { tab: boolean; label?: TextRenderable; value: TextRenderable }[][] = [];
 
-  const draw = (content: string, pulse: string) => {
+  const parseSections = (content: string) => content.split(/\n{2,}/).filter(Boolean).map((section) => section.split("\n"));
+
+  // Fixed-shape sections (the template supplies a filler value for any
+  // field it doesn't have data for) mean a divider's position never moves
+  // as data comes and goes — and, in turn, that the tree built below has the
+  // same number of sections and lines for the life of one config. True only
+  // while the config is: this still matches lineNodes shape-for-shape after
+  // any edit that doesn't touch template structure.
+  const shapeMatches = (sections: string[][]) =>
+    sections.length === lineNodes.length &&
+    sections.every((lines, index) => {
+      const cached = lineNodes[index]!;
+      return lines.length === cached.length && lines.every((line, lineIndex) => (line.indexOf("\t") !== -1) === cached[lineIndex]!.tab);
+    });
+
+  // Builds the whole panel from scratch: the border, the beacon, and one
+  // BoxRenderable per section/line/label/value, recording each text node so
+  // updateCard can find it again. Runs once per shape (normally just once,
+  // ever, for a session) rather than on every poll — see updateCard.
+  const buildCard = (sections: string[][], pulse: string) => {
     if (card) {
       renderer.root.remove(card);
       card.destroy();
@@ -99,36 +123,32 @@ export async function renderOpenTuiPane(templateName: string, sourcePane: string
       alignItems: "center",
       gap: 0,
       height: 2,
-      // The first section's own divider used to sit flush against the
-      // glyph. Dividers now separate sections only, so the beacon buys its
-      // own breathing room here instead of borrowing a band's.
-      marginBottom: 1,
     });
-    beacon.add(new TextRenderable(renderer, {
+    const pulseNode = new TextRenderable(renderer, {
       // An empty StyledText carries no chunks and measures as nothing; a
       // space keeps the reserved row a row.
       content: ansiToStyledText(pulse || " "),
       flexShrink: 0,
       wrapMode: "none",
-    }));
+    });
+    beacon.add(pulseNode);
     beacon.add(new TextRenderable(renderer, {
       content: ansiToStyledText("⛯"),
       flexShrink: 0,
       wrapMode: "none",
     }));
     panelCard.add(beacon);
+    beaconPulse = pulseNode;
 
-    // Fixed-shape sections (the template supplies a filler value for any
-    // field it doesn't have data for) mean a divider's position never moves
-    // as data comes and goes.
-    const sections = content.split(/\n{2,}/).filter(Boolean);
-    sections.forEach((section, index) => {
+    lineNodes = sections.map((lines, index) => {
       // Between sections, not before the first: a leading band read as a
-      // stray bar hanging off the beacon rather than as a separator.
+      // stray bar hanging off the beacon rather than as a separator. The
+      // beacon's own reserved blank row already buys the header its
+      // breathing room, so nothing else sits between it and the first
+      // section.
       if (index > 0) panelCard.add(divider());
-      const lines = section.split("\n");
       const panel = new BoxRenderable(renderer, { width: "100%", flexDirection: "column" });
-      for (const line of lines) {
+      const nodes = lines.map((line) => {
         // A tab splits a line into a label/value pair — a real two-column
         // row instead of one opaque right-justified blob, so a filler
         // dash reads as "this field, no data" rather than a stray mark
@@ -147,30 +167,61 @@ export async function renderOpenTuiPane(templateName: string, sourcePane: string
           gap: 2,
         });
         if (tab === -1) {
-          lineBox.add(new TextRenderable(renderer, {
-            content: ansiToStyledText(line),
-            flexShrink: 0,
-            wrapMode: "none",
-          }));
-        } else {
-          lineBox.add(new TextRenderable(renderer, {
-            content: ansiToStyledText(line.slice(0, tab)),
-            fg: RGBA.fromHex(DEFAULT_HEX.overlay1),
-            flexShrink: 0,
-            wrapMode: "none",
-          }));
-          lineBox.add(new TextRenderable(renderer, {
-            content: ansiToStyledText(line.slice(tab + 1)),
-            flexShrink: 0,
-            wrapMode: "none",
-          }));
+          const value = new TextRenderable(renderer, { content: ansiToStyledText(line), flexShrink: 0, wrapMode: "none" });
+          lineBox.add(value);
+          panel.add(lineBox);
+          return { tab: false, value };
         }
+        const label = new TextRenderable(renderer, {
+          content: ansiToStyledText(line.slice(0, tab)),
+          fg: RGBA.fromHex(DEFAULT_HEX.overlay1),
+          flexShrink: 0,
+          wrapMode: "none",
+        });
+        const value = new TextRenderable(renderer, { content: ansiToStyledText(line.slice(tab + 1)), flexShrink: 0, wrapMode: "none" });
+        lineBox.add(label);
+        lineBox.add(value);
         panel.add(lineBox);
-      }
+        return { tab: true, label, value };
+      });
       panelCard.add(panel);
+      return nodes;
     });
     card = panelCard;
     renderer.root.add(panelCard);
+  };
+
+  // The steady-state path: labels are literal template text and never
+  // change, so only each value node's content (and the beacon's pulse) needs
+  // pushing in — no BoxRenderable is torn down or recreated. That matters
+  // because the renderer paints on its own timer (see CliRenderer's
+  // targetFps), independent of this loop: removing the old tree and adding a
+  // new one is two separate mutations with a gap between them a frame can
+  // land in, which is what the flicker was — mutating text in place has no
+  // such gap.
+  const updateCard = (sections: string[][], pulse: string) => {
+    if (beaconPulse) beaconPulse.content = ansiToStyledText(pulse || " ");
+    sections.forEach((lines, index) => {
+      const nodes = lineNodes[index]!;
+      lines.forEach((line, lineIndex) => {
+        const node = nodes[lineIndex]!;
+        if (!node.tab) {
+          node.value.content = ansiToStyledText(line);
+          return;
+        }
+        const tab = line.indexOf("\t");
+        node.value.content = ansiToStyledText(line.slice(tab + 1));
+      });
+    });
+  };
+
+  const draw = (content: string, pulse: string) => {
+    const sections = parseSections(content);
+    if (card && shapeMatches(sections)) {
+      updateCard(sections, pulse);
+    } else {
+      buildCard(sections, pulse);
+    }
   };
 
   const shutdown = () => renderer.destroy();
