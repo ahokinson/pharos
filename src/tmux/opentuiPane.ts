@@ -4,6 +4,7 @@ import type { TextChunk } from "@opentui/core";
 import { DEFAULT_HEX } from "@color";
 import { commandExists, runSync } from "@process";
 import { templateOptionName } from "@render/templates";
+import { restFrame } from "@tmux/pulse";
 
 function tmuxStyleToAnsi(text: string): string {
   return text
@@ -112,40 +113,35 @@ export async function renderOpenTuiPane(templateName: string, sourcePane: string
       backgroundColor: DEFAULT_HEX.mantle,
     });
     // The beacon is deliberately its own, centred header rather than another
-    // right-aligned data row.  At a glance the flash signals live activity;
-    // the lighthouse glyph remains recognisable when the flash is at rest.
-    // The flash row is reserved whether or not it's lit: a beacon that
-    // changed height at rest would shove the whole card up a line every time
-    // a turn ended.
+    // right-aligned data row. The lighthouse icon lives inside the pulse
+    // frame itself now (see pulse.ts's restFrame/sidePulseFrame) — lit at
+    // rest and flashing through as the beam crosses its column, rather than
+    // sitting underneath as a second, permanently-visible row. That merge
+    // ate the blank row that used to separate the icon from the title below
+    // it, so marginBottom puts it back explicitly instead of leaving the two
+    // touching.
     const beacon = new BoxRenderable(renderer, {
       width: "100%",
       flexDirection: "column",
       alignItems: "center",
       gap: 0,
-      height: 2,
+      height: 1,
+      marginBottom: 1,
     });
     const pulseNode = new TextRenderable(renderer, {
-      // An empty StyledText carries no chunks and measures as nothing; a
-      // space keeps the reserved row a row.
-      content: ansiToStyledText(pulse || " "),
+      content: ansiToStyledText(pulse || restFrame()),
       flexShrink: 0,
       wrapMode: "none",
     });
     beacon.add(pulseNode);
-    beacon.add(new TextRenderable(renderer, {
-      content: ansiToStyledText("⛯"),
-      flexShrink: 0,
-      wrapMode: "none",
-    }));
     panelCard.add(beacon);
     beaconPulse = pulseNode;
 
     lineNodes = sections.map((lines, index) => {
       // Between sections, not before the first: a leading band read as a
       // stray bar hanging off the beacon rather than as a separator. The
-      // beacon's own reserved blank row already buys the header its
-      // breathing room, so nothing else sits between it and the first
-      // section.
+      // beacon's own marginBottom already buys the header its breathing
+      // room, so nothing else sits between it and the first section.
       if (index > 0) panelCard.add(divider());
       const panel = new BoxRenderable(renderer, { width: "100%", flexDirection: "column" });
       const nodes = lines.map((line) => {
@@ -200,7 +196,7 @@ export async function renderOpenTuiPane(templateName: string, sourcePane: string
   // land in, which is what the flicker was — mutating text in place has no
   // such gap.
   const updateCard = (sections: string[][], pulse: string) => {
-    if (beaconPulse) beaconPulse.content = ansiToStyledText(pulse || " ");
+    if (beaconPulse) beaconPulse.content = ansiToStyledText(pulse || restFrame());
     sections.forEach((lines, index) => {
       const nodes = lineNodes[index]!;
       lines.forEach((line, lineIndex) => {

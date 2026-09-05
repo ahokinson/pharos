@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { activePanesFrom, sweepState } from "@tmux/pulse";
+import { activePanesFrom, glyphForBrightness, restFrame, sweepState } from "@tmux/pulse";
 import { PulseState } from "@tmux/states";
 
 const SWEEP_FRAMES = 26;
@@ -49,5 +49,38 @@ describe("sweepState", () => {
 
   test("wraps back to the start after the gap", () => {
     expect(sweepState(CYCLE, 22)).toEqual(sweepState(0, 22));
+  });
+});
+
+describe("glyphForBrightness", () => {
+  test("steps down through the block tiers, then shrinking Braille dots, to blank", () => {
+    expect(glyphForBrightness(1)).toBe("█");
+    expect(glyphForBrightness(0.6)).toBe("▓");
+    expect(glyphForBrightness(0.4)).toBe("▒");
+    expect(glyphForBrightness(0.2)).toBe("░");
+    expect(glyphForBrightness(0.1)).toBe("⠶");
+    expect(glyphForBrightness(0.06)).toBe("⠒");
+    expect(glyphForBrightness(0.01)).toBe("⠂");
+    expect(glyphForBrightness(0)).toBe(" ");
+    expect(glyphForBrightness(-1)).toBe(" ");
+  });
+
+  test("each Braille tier is a sparser mark than the one before it", () => {
+    // A Braille glyph's codepoint is 0x2800 plus one bit per dot; popcount
+    // of that offset is how many dots are actually lit.
+    const dots = (glyph: string) => (glyph.codePointAt(0)! - 0x2800).toString(2).split("").filter((bit) => bit === "1").length;
+    expect(dots(glyphForBrightness(0.1))).toBeGreaterThan(dots(glyphForBrightness(0.06)));
+    expect(dots(glyphForBrightness(0.06))).toBeGreaterThan(dots(glyphForBrightness(0.01)));
+  });
+});
+
+describe("restFrame", () => {
+  test("puts the lighthouse glyph on its own center column, blank either side", () => {
+    const frame = restFrame();
+    const plain = frame.replace(/#\[default\]$/, "");
+    const centerIndex = [...plain].indexOf("⛯");
+    expect(centerIndex).toBeGreaterThan(0);
+    expect(centerIndex).toBe(plain.length - 1 - centerIndex);
+    expect([...plain].every((ch, index) => index === centerIndex || ch === " ")).toBe(true);
   });
 });
