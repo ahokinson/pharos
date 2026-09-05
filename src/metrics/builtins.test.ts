@@ -20,7 +20,7 @@ describe("diff", () => {
   test("render is muted for a zero side, colored for a nonzero side", () => {
     const c = makeCtx({ session: { added: 3, removed: 0 } });
     const text = stripAnsi(metricText("diff", c) ?? "");
-    expect(text).toBe("+3 -0");
+    expect(text).toBe("+  3 -  0");
   });
 });
 
@@ -63,7 +63,7 @@ describe("context", () => {
   test("renders pct and size with no trend when there aren't enough samples", () => {
     const c = makeCtx({ session: { pct: 42, ctxSize: 200000 } });
     const text = stripAnsi(metricText("context", c) ?? "");
-    expect(text).toBe("42% of 200k");
+    expect(text).toBe(" 42% of 200k");
   });
 
   test("includes a trend word once there are enough samples", () => {
@@ -119,7 +119,7 @@ describe("tools", () => {
     });
     const c = makeCtx({ mined: { toolCounts: { Edit: 2, Bash: 1 } }, config });
     const text = stripAnsi(metricText("tools", c) ?? "");
-    expect(text).toBe("R 1 E 2");
+    expect(text).toBe("R  1  E  2");
   });
 
   test("hideZero omits untouched buckets for compact views", () => {
@@ -127,7 +127,7 @@ describe("tools", () => {
       metricStyle: { tools: { categoryOrder: ["runs", "edits"], glyphs: { runs: "R", edits: "E" }, hideZero: true } },
     });
     const c = makeCtx({ mined: { toolCounts: { Bash: 1 } }, config });
-    expect(stripAnsi(metricText("tools", c) ?? "")).toBe("R 1");
+    expect(stripAnsi(metricText("tools", c) ?? "")).toBe("R  1");
   });
 
   test("hides the whole row rather than a wall of zeros before anything has run", () => {

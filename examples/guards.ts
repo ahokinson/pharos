@@ -105,7 +105,10 @@ const guardsMetric: Metric<Record<string, number>> = {
           : count > 0
             ? ctx.style.color(def.color)
             : ctx.style.color("overlay2");
-      const cell = state === ABSENT ? "-" : String(count);
+      // Padded to 2 digits (or the "-" placeholder, right-aligned the same
+      // way) so one guard crossing a digit boundary doesn't nudge the ones
+      // after it sideways under the shield.
+      const cell = (state === ABSENT ? "-" : String(count)).padStart(2);
       cells += ` ${cellFg}${cell}`;
     }
     // Shield = the guards' worst state: red if any is degraded, else peach

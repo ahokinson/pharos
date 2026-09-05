@@ -30,7 +30,10 @@ const diffMetric: Metric<DiffValue> = {
     const s = ctx.style.settings("diff", DIFF_DEFAULTS);
     const addFg = ctx.style.color(value.added > 0 ? s.addColor : s.neutralColor);
     const remFg = ctx.style.color(value.removed > 0 ? s.removeColor : s.neutralColor);
-    return `${addFg}+${value.added} ${remFg}-${value.removed}`;
+    // Padded to 3 digits: line counts climb past the two-digit range a
+    // session's tool-call counts rarely reach, and a jump like 9 -> 10 would
+    // otherwise nudge the removed count sideways mid-session.
+    return `${addFg}+${String(value.added).padStart(3)} ${remFg}-${String(value.removed).padStart(3)}`;
   },
 };
 
@@ -65,7 +68,10 @@ const costMetric: Metric<number> = {
     // billed per session, so it's muted instead of ramped. rate_limits is
     // only sent to subscribers, so its presence is our "on a plan" signal.
     const color = ctx.onPlan ? ctx.style.color(s.mutedColor) : ctx.style.ramp(cost, s);
-    return `${color}$${cost.toFixed(2)}`;
+    // Space-padded as a whole string (not zero-padded — "$02.01" would read
+    // wrong) so the dollar sign stays put as the session's running total
+    // climbs from single to triple digits.
+    return `${color}${`$${cost.toFixed(2)}`.padStart(7)}`;
   },
 };
 
@@ -154,7 +160,9 @@ const contextMetric: Metric<ContextValue> = {
       trend === "rising" ? s.risingColor : trend === "falling" ? s.fallingColor : s.steadyColor,
     );
 
-    const pctStr = `${value.pct}%`;
+    // Padded to "100%"'s width, same reason as the sidecard's rate-limit
+    // rows: an unpadded "9%" vs "35%" would shift the sparkline that follows.
+    const pctStr = `${String(value.pct).padStart(3)}%`;
     let text: string;
     if (sparkline) {
       const span = pctStr.length + sparkline.length;
@@ -307,10 +315,16 @@ const toolsMetric: Metric<Partial<Record<ToolCategory, number>>> = {
     const s = ctx.style.settings("tools", TOOLS_DEFAULTS);
     const label = ctx.style.color(s.labelColor);
     const count = ctx.style.color(s.countColor);
+    // A single space keeps each glyph tight against its own count; two
+    // between categories is the gap that keeps three independent counts
+    // ("edits 4  reads 5  runs 45") from reading as one run-on digit string
+    // the way Guards' single-space join deliberately does for its one group.
+    // Each count is padded to 2 digits so a category crossing from 9 to 10
+    // calls mid-session doesn't nudge every category after it sideways.
     return s.categoryOrder
       .filter((category) => !s.hideZero || (bucket[category] ?? 0) > 0)
-      .map((category) => `${label}${s.glyphs[category] ?? "?"} ${count}${bucket[category] ?? 0}`)
-      .join(" ");
+      .map((category) => `${label}${s.glyphs[category] ?? "?"} ${count}${String(bucket[category] ?? 0).padStart(2)}`)
+      .join("  ");
   },
 };
 
@@ -335,7 +349,7 @@ const toolErrorsMetric: Metric<number> = {
   render: (count, ctx) => {
     if (count <= 0) return null;
     const s = ctx.style.settings("toolErrors", TOOL_ERRORS_DEFAULTS);
-    return `${ctx.style.color(s.color)}${s.glyph} ${count}`;
+    return `${ctx.style.color(s.color)}${s.glyph} ${String(count).padStart(2)}`;
   },
 };
 

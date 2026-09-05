@@ -96,14 +96,16 @@ describe("examples/guards.ts", () => {
     const raw = metric.render(metric.compute(ctx), ctx)!;
 
     // Counts render in `order`, so position alone identifies each guard.
-    expect(stripAnsi(raw)).toEndWith(" 0 2 0");
+    // Each is padded to 2 digits so one crossing into double digits doesn't
+    // nudge the ones after it sideways.
+    expect(stripAnsi(raw)).toEndWith("  0  2  0");
 
     // Color is the only other thing distinguishing them now that the
     // per-guard glyphs are gone, so the nonzero count has to actually carry
     // its guard's color rather than the dim zero treatment.
     const style = buildStyleKit(config);
-    expect(raw).toContain(`${style.color("peach")}2`);
-    expect(raw).toContain(`${style.color("overlay2")}0`);
+    expect(raw).toContain(`${style.color("peach")} 2`);
+    expect(raw).toContain(`${style.color("overlay2")} 0`);
 
     rmSync(dir, { recursive: true, force: true });
   });

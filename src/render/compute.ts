@@ -245,7 +245,9 @@ export async function computeRows(raw: unknown, config: Config, budgets: RowBudg
     // worktree holding only new files would read "+0  −0". Same rule the
     // diff/cost/tokens metrics follow: say nothing rather than say zero.
     if (git.added > 0 || git.removed > 0) {
-      renderedFields.worktreeDiff = `${style.color("green")}+${git.added}  ${style.color("red")}−${git.removed}`;
+      // Padded like the Diff row below: a line count crossing a digit
+      // boundary shouldn't nudge the removed count sideways.
+      renderedFields.worktreeDiff = `${style.color("green")}+${String(git.added).padStart(3)}  ${style.color("red")}−${String(git.removed).padStart(3)}`;
     }
   }
   const cardRate5 = rateCardLine(session.rl5, session.rl5Reset, nowEpoch, style);
