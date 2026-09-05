@@ -33,7 +33,12 @@ function rateCardLine(pct: number | null, reset: string | number | null, nowEpoc
   const color = style.lerp(value / 100, "green", "red");
   const meter = `${"▰".repeat(filled)}${style.color("surface1")}${"▱".repeat(cells - filled)}`;
   const resetText = reset === null ? "" : style.countdown(reset, nowEpoch);
-  return `${color}${meter} ${value}%${style.color("overlay1")}${resetText ? ` ${resetText}` : ""}`;
+  // Right-padded to "100%"'s width: an unpadded "9%" vs "35%" would shift the
+  // meter that follows in the card's right-flushed value cell (see
+  // opentuiPane.ts), so the 5h and 7d rows' bars land on the same column
+  // regardless of digit count.
+  const pctStr = `${String(value).padStart(3)}%`;
+  return `${color}${meter} ${pctStr}${style.color("overlay1")}${resetText ? ` ${resetText}` : ""}`;
 }
 
 // The card's own harness row already names the host, so a leading vendor
