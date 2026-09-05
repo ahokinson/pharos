@@ -9,7 +9,7 @@
 # opencode package (also a bun --compile binary) uses stdenvNoCC for the
 # same reason.
 let
-  version = "0.2.4";
+  version = "0.2.5";
 
   # `bun build --compile` resolves imports from a real node_modules, so the
   # dependency tree has to exist before the build proper. Fetching it needs
