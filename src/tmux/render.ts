@@ -60,7 +60,7 @@ export async function renderToTmux(_args: string[], config: Config): Promise<voi
     // for it once the pid we already published has died.
     const panePidNumber = Number(panePid);
     if (panePidNumber > 0 && (!knownPid || !processAlive(Number(knownPid)))) {
-      const agentPid = currentAgentPid(process.pid, panePidNumber);
+      const agentPid = currentAgentPid(process.pid, panePidNumber, tool);
       if (agentPid) runSync(["tmux", "set", "-p", "-t", paneId, "@pharos_pid", String(agentPid)]);
     }
 
